@@ -1,0 +1,7 @@
+__pycache__/*
+build/*
+dist/*
+pybls21.egg-info/dependency_links.txt
+pybls21.egg-info/PKG-INFO
+pybls21.egg-info/SOURCES.txt
+pybls21.egg-info/top_level.txt
