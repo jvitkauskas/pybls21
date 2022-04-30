@@ -10,8 +10,8 @@ def help():
     print("pybls21 demo app")
     print("syntax: main.py [options]")
     print("options:")
-    print("    --host <hvac_ip>      ... network address of your Salus UG600 universal gateway")
-    print("    --port [hvac_port]    ... EUID which is specified on the bottom of your gateway")
+    print("    --host <hvac_ip>      ... network address of your HVAC device")
+    print("    --port [hvac_port]    ... optional TCP port if device is behind the proxy")
     print()
     print("examples:")
     print("    main.py --host 192.168.0.125 --port 502")
@@ -32,7 +32,7 @@ def main():
         "--port",
         type=int,
         dest="port",
-        help="network address of your HVAC device",
+        help="optional TCP port if device is behind the proxy",
         metavar="PORT",
         default=502,
     )
