@@ -48,3 +48,6 @@ class ClimateDevice(NamedTuple):
     manufacturer: str
     model: Optional[str]
     sw_version: Optional[str]
+    is_boosting: bool
+    current_intake_temperature: float
+    manual_fan_speed_percent: int

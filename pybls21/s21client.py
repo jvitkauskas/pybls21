@@ -29,8 +29,8 @@ class S21Client:
         is_boosting: bool = (self.client.read_coils(3, 1)).bits[0]
         set_temperature: int = (self.client.read_holding_registers(44, 1)).registers[0]
         current_humidity: int = (self.client.read_input_registers(10, 1)).registers[0]
-        filter_state: int = (self.client.read_input_registers(31, 1)).registers[0]
-        alarm_state: int = (self.client.read_input_registers(38, 1)).registers[0]
+        # filter_state: int = (self.client.read_input_registers(31, 1)).registers[0]
+        # alarm_state: int = (self.client.read_input_registers(38, 1)).registers[0]
         max_fan_level: int = (self.client.read_holding_registers(1, 1)).registers[0]
         current_fan_level: int = (self.client.read_holding_registers(2, 1)).registers[0]  # 255 - manual
         temp_before_heating_x10: int = (self.client.read_input_registers(1, 1)).registers[0]
@@ -38,6 +38,7 @@ class S21Client:
         firmware_info: List[int] = (self.client.read_input_registers(34, 3)).registers
         device_type: int = (self.client.read_input_registers(37, 1)).registers[0]
         operation_mode: int = (self.client.read_holding_registers(43, 1)).registers[0]
+        manual_fan_speed_percent: int = (self.client.read_holding_registers(17, 1)).registers[0]
 
         model: str = "S21" if device_type == 1 else "Unknown"
 
@@ -69,7 +70,10 @@ class S21Client:
             supported_features=ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE,
             manufacturer="Blauberg",
             model=model,
-            sw_version=_parse_firmware_version(firmware_info)
+            sw_version=_parse_firmware_version(firmware_info),
+            is_boosting=is_boosting,
+            current_intake_temperature=temp_before_heating_x10 / 10,
+            manual_fan_speed_percent=manual_fan_speed_percent
         )
 
     def turn_on(self) -> None:
