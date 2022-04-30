@@ -82,7 +82,11 @@ class S21Client:
 
             return self.device
         except ConnectionException as ce:
+            self.device.available = False
             raise ConnectionError(ce) from ce
+        except Exception:
+            self.device.available = False
+            raise
 
     def turn_on(self) -> None:
         self.client.write_coil(0, 1)
