@@ -9,14 +9,11 @@ class RetryingModbusClient:
     async def connect(self):
         await self._client.connect()
 
-    async def read_coil(self, address: int) -> bool:
-        return (await self.retry(lambda c: c.read_coils(address, 1))).bits[0]
+    async def read_coils(self, address: int, count: int) -> list[bool]:
+        return (await self.retry(lambda c: c.read_coils(address, count))).bits
 
-    async def read_holding_register(self, address: int) -> int:
-        return (await self.retry(lambda c: c.read_holding_registers(address, 1))).registers[0]
-
-    async def read_input_register(self, address: int) -> int:
-        return (await self.retry(lambda c: c.read_input_registers(address, 1))).registers[0]
+    async def read_holding_registers(self, address: int, count: int) -> list[int]:
+        return (await self.retry(lambda c: c.read_holding_registers(address, count))).registers
 
     async def read_input_registers(self, address: int, count: int) -> list[int]:
         return (await self.retry(lambda c: c.read_input_registers(address, count))).registers

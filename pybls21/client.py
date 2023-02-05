@@ -28,20 +28,24 @@ class S21Client:
 
     async def poll(self) -> ClimateDevice:
         try:
-            is_on: bool = await self.client.read_coil(0)
-            is_boosting: bool = await self.client.read_coil(3)
-            set_temperature: int = await self.client.read_holding_register(44)
-            current_humidity: int = await self.client.read_input_register(10)
-            # filter_state: int = await self.client.read_input_register(31)
-            # alarm_state: int = await self.client.read_input_register(38)
-            max_fan_level: int = await self.client.read_holding_register(1)
-            current_fan_level: int = await self.client.read_holding_register(2)  # 255 - manual
-            temp_before_heating_x10: int = await self.client.read_input_register(1)
-            temp_after_heating_x10: int = await self.client.read_input_register(2)
-            firmware_info: list[int] = await self.client.read_input_registers(34, 3)
-            device_type: int = await self.client.read_input_register(37)
-            operation_mode: int = await self.client.read_holding_register(43)
-            manual_fan_speed_percent: int = await self.client.read_holding_register(17)
+            coils = await self.client.read_coils(0, 4)
+            holding_registers = await self.client.read_holding_registers(0, 45)
+            input_registers = await self.client.read_input_registers(0, 38)
+
+            is_on: bool = coils[0]
+            is_boosting: bool = coils[3]
+            set_temperature: int = holding_registers[44]
+            current_humidity: int = input_registers[10]
+            # filter_state: int = input_registers[31]
+            # alarm_state: int = input_registers[38]
+            max_fan_level: int = holding_registers[1]
+            current_fan_level: int = holding_registers[2]  # 255 - manual
+            temp_before_heating_x10: int = input_registers[1]
+            temp_after_heating_x10: int = input_registers[2]
+            firmware_info: list[int] = input_registers[34:37]
+            device_type: int = input_registers[37]
+            operation_mode: int = holding_registers[43]
+            manual_fan_speed_percent: int = holding_registers[17]
 
             model: str = "S21" if device_type == 1 else "Unknown"
 
