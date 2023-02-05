@@ -21,10 +21,10 @@ def _parse_firmware_version(firmware_info: List[int]):
 
 
 class S21Client:
-    def __init__(self, ip_address: str, port: int = 502):
-        self.ip_address = ip_address
+    def __init__(self, host: str, port: int = 502):
+        self.host = host
         self.port = port
-        self.client: ModbusTcpClient = ModbusTcpClient(host=self.ip_address, port=self.port)
+        self.client: ModbusTcpClient = ModbusTcpClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
 
     def poll_status(self) -> ClimateDevice:
@@ -49,7 +49,7 @@ class S21Client:
             self.device = ClimateDevice(
                 available=True,
                 name=model,
-                unique_id=f'{model}_{self.ip_address}_{self.port}',
+                unique_id=f'{model}_{self.host}_{self.port}',
                 temperature_unit=TEMP_CELSIUS,  # Seems like no Fahrenheit option is available
                 precision=1,
                 current_temperature=temp_after_heating_x10 / 10,
@@ -82,10 +82,12 @@ class S21Client:
 
             return self.device
         except ConnectionException as ce:
-            self.device.available = False
+            if self.device:
+                self.device.available = False
             raise ConnectionError(ce) from ce
         except Exception:
-            self.device.available = False
+            if self.device:
+                self.device.available = False
             raise
 
     def turn_on(self) -> None:
