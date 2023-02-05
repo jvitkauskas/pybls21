@@ -1,13 +1,12 @@
 from pymodbus.exceptions import ConnectionException
 
 from .models import ClimateDevice, HVACMode, HVACAction, TEMP_CELSIUS, ClimateEntityFeature
+from .retrying_modbus_client import RetryingModbusClient
 
-from pymodbus.client.sync import ModbusTcpClient
-
-from typing import List, Optional
+from typing import Optional
 
 
-def _parse_firmware_version(firmware_info: List[int]):
+def _parse_firmware_version(firmware_info: list[int]):
     major_minor = firmware_info[0]
     major = (major_minor & 0xff00) >> 8
     minor = major_minor & 0xff
@@ -24,25 +23,25 @@ class S21Client:
     def __init__(self, host: str, port: int = 502):
         self.host = host
         self.port = port
-        self.client: ModbusTcpClient = ModbusTcpClient(host=self.host, port=self.port)
+        self.client = RetryingModbusClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
 
     def poll_status(self) -> ClimateDevice:
         try:
-            is_on: bool = (self.client.read_coils(0, 1)).bits[0]
-            is_boosting: bool = (self.client.read_coils(3, 1)).bits[0]
-            set_temperature: int = (self.client.read_holding_registers(44, 1)).registers[0]
-            current_humidity: int = (self.client.read_input_registers(10, 1)).registers[0]
-            # filter_state: int = (self.client.read_input_registers(31, 1)).registers[0]
-            # alarm_state: int = (self.client.read_input_registers(38, 1)).registers[0]
-            max_fan_level: int = (self.client.read_holding_registers(1, 1)).registers[0]
-            current_fan_level: int = (self.client.read_holding_registers(2, 1)).registers[0]  # 255 - manual
-            temp_before_heating_x10: int = (self.client.read_input_registers(1, 1)).registers[0]
-            temp_after_heating_x10: int = (self.client.read_input_registers(2, 1)).registers[0]
-            firmware_info: List[int] = (self.client.read_input_registers(34, 3)).registers
-            device_type: int = (self.client.read_input_registers(37, 1)).registers[0]
-            operation_mode: int = (self.client.read_holding_registers(43, 1)).registers[0]
-            manual_fan_speed_percent: int = (self.client.read_holding_registers(17, 1)).registers[0]
+            is_on: bool = self.client.read_coil(0)
+            is_boosting: bool = self.client.read_coil(3)
+            set_temperature: int = self.client.read_holding_register(44)
+            current_humidity: int = self.client.read_input_register(10)
+            # filter_state: int = self.client.read_input_register(31)
+            # alarm_state: int = self.client.read_input_register(38)
+            max_fan_level: int = self.client.read_holding_register(1)
+            current_fan_level: int = self.client.read_holding_register(2)  # 255 - manual
+            temp_before_heating_x10: int = self.client.read_input_register(1)
+            temp_after_heating_x10: int = self.client.read_input_register(2)
+            firmware_info: list[int] = self.client.read_input_registers(34, 3)
+            device_type: int = self.client.read_input_register(37)
+            operation_mode: int = self.client.read_holding_register(43)
+            manual_fan_speed_percent: int = self.client.read_holding_register(17)
 
             model: str = "S21" if device_type == 1 else "Unknown"
 
@@ -82,34 +81,34 @@ class S21Client:
 
             return self.device
         except ConnectionException as ce:
-            if self.device:
+            if isinstance(self.device, ClimateDevice):
                 self.device.available = False
             raise ConnectionError(ce) from ce
         except Exception:
-            if self.device:
+            if isinstance(self.device, ClimateDevice):
                 self.device.available = False
             raise
 
     def turn_on(self) -> None:
-        self.client.write_coil(0, 1)
+        self.client.write_coil(0, True)
 
     def turn_off(self) -> None:
-        self.client.write_coil(0, 0)
+        self.client.write_coil(0, False)
 
     def set_hvac_mode(self, hvac_mode: HVACMode):
         if hvac_mode == HVACMode.OFF:
-            self.client.write_coil(0, 0)
+            self.client.write_coil(0, False)
         elif hvac_mode == HVACMode.FAN_ONLY:
-            self.client.write_coil(0, 1)
+            self.client.write_coil(0, True)
             self.client.write_register(43, 0)
         elif hvac_mode == HVACMode.HEAT:
-            self.client.write_coil(0, 1)
+            self.client.write_coil(0, True)
             self.client.write_register(43, 1)
         elif hvac_mode == HVACMode.COOL:
-            self.client.write_coil(0, 1)
+            self.client.write_coil(0, True)
             self.client.write_register(43, 2)
         elif hvac_mode == HVACMode.AUTO:
-            self.client.write_coil(0, 1)
+            self.client.write_coil(0, True)
             self.client.write_register(43, 3)
 
     def set_fan_mode(self, mode: int) -> None:
