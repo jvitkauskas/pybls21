@@ -1,1 +1,1 @@
-from pybls21.s21client import S21Client
+from pybls21.client import S21Client

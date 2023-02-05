@@ -26,22 +26,22 @@ class S21Client:
         self.client = RetryingModbusClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
 
-    def poll_status(self) -> ClimateDevice:
+    async def poll(self) -> ClimateDevice:
         try:
-            is_on: bool = self.client.read_coil(0)
-            is_boosting: bool = self.client.read_coil(3)
-            set_temperature: int = self.client.read_holding_register(44)
-            current_humidity: int = self.client.read_input_register(10)
-            # filter_state: int = self.client.read_input_register(31)
-            # alarm_state: int = self.client.read_input_register(38)
-            max_fan_level: int = self.client.read_holding_register(1)
-            current_fan_level: int = self.client.read_holding_register(2)  # 255 - manual
-            temp_before_heating_x10: int = self.client.read_input_register(1)
-            temp_after_heating_x10: int = self.client.read_input_register(2)
-            firmware_info: list[int] = self.client.read_input_registers(34, 3)
-            device_type: int = self.client.read_input_register(37)
-            operation_mode: int = self.client.read_holding_register(43)
-            manual_fan_speed_percent: int = self.client.read_holding_register(17)
+            is_on: bool = await self.client.read_coil(0)
+            is_boosting: bool = await self.client.read_coil(3)
+            set_temperature: int = await self.client.read_holding_register(44)
+            current_humidity: int = await self.client.read_input_register(10)
+            # filter_state: int = await self.client.read_input_register(31)
+            # alarm_state: int = await self.client.read_input_register(38)
+            max_fan_level: int = await self.client.read_holding_register(1)
+            current_fan_level: int = await self.client.read_holding_register(2)  # 255 - manual
+            temp_before_heating_x10: int = await self.client.read_input_register(1)
+            temp_after_heating_x10: int = await self.client.read_input_register(2)
+            firmware_info: list[int] = await self.client.read_input_registers(34, 3)
+            device_type: int = await self.client.read_input_register(37)
+            operation_mode: int = await self.client.read_holding_register(43)
+            manual_fan_speed_percent: int = await self.client.read_holding_register(17)
 
             model: str = "S21" if device_type == 1 else "Unknown"
 
@@ -58,18 +58,18 @@ class S21Client:
                 max_temp=30,
                 current_humidity=None if current_humidity == 0 else current_humidity,
                 hvac_mode=HVACMode.OFF if not is_on
-                          else HVACMode.FAN_ONLY if operation_mode == 0
-                          else HVACMode.HEAT if operation_mode == 1
-                          else HVACMode.COOL if operation_mode == 2
-                          else HVACMode.AUTO,
+                else HVACMode.FAN_ONLY if operation_mode == 0
+                else HVACMode.HEAT if operation_mode == 1
+                else HVACMode.COOL if operation_mode == 2
+                else HVACMode.AUTO,
                 hvac_action=HVACAction.OFF if not is_on
-                            else HVACAction.FAN if operation_mode == 0
-                            else HVACAction.HEATING if temp_before_heating_x10 < temp_after_heating_x10
-                            else HVACAction.COOLING if temp_before_heating_x10 > temp_after_heating_x10
-                            else HVACAction.IDLE,
+                else HVACAction.FAN if operation_mode == 0
+                else HVACAction.HEATING if temp_before_heating_x10 < temp_after_heating_x10
+                else HVACAction.COOLING if temp_before_heating_x10 > temp_after_heating_x10
+                else HVACAction.IDLE,
                 hvac_modes=[HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.AUTO, HVACMode.FAN_ONLY],
                 fan_mode=current_fan_level,
-                fan_modes=[x+1 for x in range(max_fan_level)] + [255],
+                fan_modes=[x + 1 for x in range(max_fan_level)] + [255],
                 supported_features=ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE,
                 manufacturer="Blauberg",
                 model=model,
@@ -89,33 +89,33 @@ class S21Client:
                 self.device.available = False
             raise
 
-    def turn_on(self) -> None:
-        self.client.write_coil(0, True)
+    async def turn_on(self) -> None:
+        await self.client.write_coil(0, True)
 
-    def turn_off(self) -> None:
-        self.client.write_coil(0, False)
+    async def turn_off(self) -> None:
+        await self.client.write_coil(0, False)
 
-    def set_hvac_mode(self, hvac_mode: HVACMode):
+    async def set_hvac_mode(self, hvac_mode: HVACMode):
         if hvac_mode == HVACMode.OFF:
-            self.client.write_coil(0, False)
+            await self.turn_off()
         elif hvac_mode == HVACMode.FAN_ONLY:
-            self.client.write_coil(0, True)
-            self.client.write_register(43, 0)
+            await self.turn_on()
+            await self.client.write_register(43, 0)
         elif hvac_mode == HVACMode.HEAT:
-            self.client.write_coil(0, True)
-            self.client.write_register(43, 1)
+            await self.turn_on()
+            await self.client.write_register(43, 1)
         elif hvac_mode == HVACMode.COOL:
-            self.client.write_coil(0, True)
-            self.client.write_register(43, 2)
+            await self.turn_on()
+            await self.client.write_register(43, 2)
         elif hvac_mode == HVACMode.AUTO:
-            self.client.write_coil(0, True)
-            self.client.write_register(43, 3)
+            await self.turn_on()
+            await self.client.write_register(43, 3)
 
-    def set_fan_mode(self, mode: int) -> None:
-        self.client.write_register(2, mode)
+    async def set_fan_mode(self, mode: int) -> None:
+        await self.client.write_register(2, mode)
 
-    def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        self.client.write_register(17, speed_percent)
+    async def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
+        await self.client.write_register(17, speed_percent)
 
-    def set_temperature(self, temp_celsius: int) -> None:
-        self.client.write_register(44, temp_celsius)
+    async def set_temperature(self, temp_celsius: int) -> None:
+        await self.client.write_register(44, temp_celsius)

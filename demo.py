@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import asyncio
 import logging
 import sys
 
@@ -17,7 +18,7 @@ def help():
     print("    main.py --host 192.168.0.125 --port 502")
 
 
-def main():
+async def main():
     logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(description="Commands: mode fan temp")
     parser.add_argument(
@@ -44,10 +45,10 @@ def main():
 
     client = S21Client(args.host, args.port)
 
-    status = client.poll_status()
+    status = await client.poll()
 
     print(repr(status))
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

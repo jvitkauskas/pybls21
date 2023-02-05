@@ -1,4 +1,4 @@
-# Blauberg S21 Python TCP API
+# Blauberg S21 Asynchronous Python TCP API
 An api allowing control of AC state (temperature, on/off, speed) of an Blauberg S21 device locally over TCP.
 
 ## Usage
@@ -6,7 +6,7 @@ To initialize:
 `client = S21Client("192.168.0.125")`
 
 To load:
-`client.poll_status()`
+`await client.poll()`
 
 The following functions are available:
 `turn_on`
