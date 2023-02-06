@@ -30,14 +30,14 @@ class S21Client:
         try:
             coils = await self.client.read_coils(0, 4)
             holding_registers = await self.client.read_holding_registers(0, 45)
-            input_registers = await self.client.read_input_registers(0, 38)
+            input_registers = await self.client.read_input_registers(0, 39)
 
             is_on: bool = coils[0]
             is_boosting: bool = coils[3]
             set_temperature: int = holding_registers[44]
             current_humidity: int = input_registers[10]
-            # filter_state: int = input_registers[31]
-            # alarm_state: int = input_registers[38]
+            filter_state: int = input_registers[31]
+            alarm_state: int = input_registers[38]
             max_fan_level: int = holding_registers[1]
             current_fan_level: int = holding_registers[2]  # 255 - manual
             temp_before_heating_x10: int = input_registers[1]
@@ -80,7 +80,10 @@ class S21Client:
                 sw_version=_parse_firmware_version(firmware_info),
                 is_boosting=is_boosting,
                 current_intake_temperature=temp_before_heating_x10 / 10,
-                manual_fan_speed_percent=manual_fan_speed_percent
+                manual_fan_speed_percent=manual_fan_speed_percent,
+                max_fan_level=max_fan_level,
+                filter_state=filter_state,
+                alarm_state=alarm_state,
             )
 
             return self.device

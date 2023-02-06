@@ -51,3 +51,6 @@ class ClimateDevice(NamedTuple):
     is_boosting: bool
     current_intake_temperature: float
     manual_fan_speed_percent: int
+    max_fan_level: int
+    filter_state: int
+    alarm_state: int
