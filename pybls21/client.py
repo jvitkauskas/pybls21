@@ -6,7 +6,7 @@ from .retrying_modbus_client import RetryingModbusClient
 from typing import Optional
 
 
-def _parse_firmware_version(firmware_info: list[int]):
+def _parse_firmware_version(firmware_info: list[int]) -> str:
     major_minor = firmware_info[0]
     major = (major_minor & 0xff00) >> 8
     minor = major_minor & 0xff
@@ -102,7 +102,7 @@ class S21Client:
     async def turn_off(self) -> None:
         await self.client.write_coil(0, False)
 
-    async def set_hvac_mode(self, hvac_mode: HVACMode):
+    async def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
             await self.turn_off()
         elif hvac_mode == HVACMode.FAN_ONLY:

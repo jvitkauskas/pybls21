@@ -1,12 +1,14 @@
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 
+from typing import Any
+
 
 class RetryingModbusClient:
     def __init__(self, host: str, port: int):
         self._client = AsyncModbusTcpClient(host, port)
 
-    async def connect(self):
+    async def connect(self) -> None:
         await self._client.connect()
 
     async def read_coils(self, address: int, count: int) -> list[bool]:
@@ -24,7 +26,7 @@ class RetryingModbusClient:
     async def write_register(self, address: int, value: int) -> None:
         await self.retry(lambda c: c.write_register(address, value))
 
-    async def retry(self, func):
+    async def retry(self, func) -> Any:
         for _ in range(3):
             try:
                 if not self._client.connected:
