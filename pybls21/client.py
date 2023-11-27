@@ -1,7 +1,6 @@
-from pymodbus.exceptions import ConnectionException
+from pyModbusTCP.client import ModbusClient
 
 from .models import ClimateDevice, HVACMode, HVACAction, TEMP_CELSIUS, ClimateEntityFeature
-from .retrying_modbus_client import RetryingModbusClient
 
 from typing import Optional
 
@@ -23,14 +22,14 @@ class S21Client:
     def __init__(self, host: str, port: int = 502):
         self.host = host
         self.port = port
-        self.client = RetryingModbusClient(host=self.host, port=self.port)
+        self.client = ModbusClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
 
-    async def poll(self) -> ClimateDevice:
+    def poll(self) -> ClimateDevice:
         try:
-            coils = await self.client.read_coils(0, 4)
-            holding_registers = await self.client.read_holding_registers(0, 45)
-            input_registers = await self.client.read_input_registers(0, 39)
+            coils = self.client.read_coils(0, 4)
+            holding_registers = self.client.read_holding_registers(0, 45)
+            input_registers = self.client.read_input_registers(0, 39)
 
             is_on: bool = coils[0]
             is_boosting: bool = coils[3]
@@ -87,42 +86,38 @@ class S21Client:
             )
 
             return self.device
-        except ConnectionException as ce:
-            if isinstance(self.device, ClimateDevice):
-                self.device.available = False
-            raise ConnectionError(ce) from ce
         except Exception:
             if isinstance(self.device, ClimateDevice):
                 self.device.available = False
             raise
 
-    async def turn_on(self) -> None:
-        await self.client.write_coil(0, True)
+    def turn_on(self) -> None:
+        self.client.write_single_coil(0, True)
 
-    async def turn_off(self) -> None:
-        await self.client.write_coil(0, False)
+    def turn_off(self) -> None:
+        self.client.write_single_coil(0, False)
 
-    async def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+    def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
-            await self.turn_off()
+            self.turn_off()
         elif hvac_mode == HVACMode.FAN_ONLY:
-            await self.turn_on()
-            await self.client.write_register(43, 0)
+            self.turn_on()
+            self.client.write_single_register(43, 0)
         elif hvac_mode == HVACMode.HEAT:
-            await self.turn_on()
-            await self.client.write_register(43, 1)
+            self.turn_on()
+            self.client.write_single_register(43, 1)
         elif hvac_mode == HVACMode.COOL:
-            await self.turn_on()
-            await self.client.write_register(43, 2)
+            self.turn_on()
+            self.client.write_single_register(43, 2)
         elif hvac_mode == HVACMode.AUTO:
-            await self.turn_on()
-            await self.client.write_register(43, 3)
+            self.turn_on()
+            self.client.write_single_register(43, 3)
 
-    async def set_fan_mode(self, mode: int) -> None:
-        await self.client.write_register(2, mode)
+    def set_fan_mode(self, mode: int) -> None:
+        self.client.write_single_register(2, mode)
 
-    async def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        await self.client.write_register(17, speed_percent)
+    def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
+        self.client.write_single_register(17, speed_percent)
 
-    async def set_temperature(self, temp_celsius: int) -> None:
-        await self.client.write_register(44, temp_celsius)
+    def set_temperature(self, temp_celsius: int) -> None:
+        self.client.write_single_register(44, temp_celsius)

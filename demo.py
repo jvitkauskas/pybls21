@@ -9,13 +9,13 @@ from pybls21 import S21Client
 
 def help():
     print("pybls21 demo app")
-    print("syntax: main.py [options]")
+    print("syntax: demo.py [options]")
     print("options:")
     print("    --host <hvac_ip>      ... network address of your HVAC device")
     print("    --port [hvac_port]    ... optional TCP port if device is behind the proxy")
     print()
     print("examples:")
-    print("    main.py --host 192.168.0.125 --port 502")
+    print("    demo.py --host 192.168.0.125 --port 502")
 
 
 async def main():
@@ -45,7 +45,7 @@ async def main():
 
     client = S21Client(args.host, args.port)
 
-    status = await client.poll()
+    status = client.poll()
 
     print(repr(status))
 

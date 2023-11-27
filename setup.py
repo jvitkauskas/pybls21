@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pybls21",
-    version="2.0.2",
+    version="3.0.0",
     author="Julius Vitkauskas",
     author_email="zadintuvas@gmail.com",
     description="An api allowing control of AC state (temperature, on/off, speed) of an Blauberg S21 device locally over TCP",
@@ -13,11 +13,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/jvitkauskas/pybls21",
     packages=setuptools.find_packages(),
-    install_requires=['pymodbus>=3.1.1,<4.0'],
+    install_requires=['pyModbusTCP>=0.2.1,<1.0'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.4',
+    python_requires='>=3.7',
 )
