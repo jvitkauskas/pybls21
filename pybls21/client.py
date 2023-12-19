@@ -2,13 +2,13 @@ from pyModbusTCP.client import ModbusClient
 
 from .constants import *
 from .exceptions import *
-from .models import ClimateDevice, HVACMode, HVACAction, TEMP_CELSIUS, ClimateEntityFeature
+from .models import ClimateDevice, ClimateEntityFeature, HVACAction, HVACMode, TEMP_CELSIUS
 
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 from threading import Lock
 
 
-def _parse_firmware_version(firmware_info: list[int]) -> str:
+def _parse_firmware_version(firmware_info: List[int]) -> str:
     major_minor = firmware_info[0]
     major = (major_minor & 0xff00) >> 8
     minor = major_minor & 0xff
@@ -82,7 +82,7 @@ class S21Client:
         current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
         temp_before_heating_x10: int = input_registers[IR_CurTEMP_SuAirIn]
         temp_after_heating_x10: int = input_registers[IR_CurTEMP_SuAirOut]
-        firmware_info: list[int] = input_registers[IR_VerMAIN_FMW_start:IR_VerMAIN_FMW_end+1]
+        firmware_info: List[int] = input_registers[IR_VerMAIN_FMW_start:IR_VerMAIN_FMW_end+1]
         operation_mode: int = holding_registers[HR_OPERATION_MODE]
         manual_fan_speed_percent: int = holding_registers[HR_ManualSPEED]
 

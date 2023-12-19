@@ -2,9 +2,9 @@ import unittest
 
 from pyModbusTCP.server import ModbusServer, DataBank
 
+from pybls21.client import S21Client
 from pybls21.constants import *
 from pybls21.exceptions import *
-from pybls21.client import S21Client
 from pybls21.models import HVACAction, HVACMode, ClimateDevice, ClimateEntityFeature
 
 
@@ -304,6 +304,8 @@ class TestClient(unittest.TestCase):
 
 
 class TestDataBank(DataBank):
+    __test__ = False
+
     def __init__(self):
         super().__init__(coils_size=25, d_inputs_size=72, h_regs_size=182, i_regs_size=51)
         self.reset()
