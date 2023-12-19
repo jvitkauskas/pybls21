@@ -50,6 +50,9 @@ class S21Client:
     def set_temperature(self, temp_celsius: int) -> None:
         self._do_with_connection(lambda: self._set_temperature(temp_celsius))
 
+    def reset_filter_change_timer(self) -> None:
+        self._do_with_connection(self._reset_filter_change_timer)
+
     def _do_with_connection(self, func: Callable):
         with self.lock:  # Device does not support multiple connections
             if not self.client.open():
@@ -155,3 +158,6 @@ class S21Client:
 
     def _set_temperature(self, temp_celsius: int) -> None:
         self.client.write_single_register(HR_SetTEMP, temp_celsius)
+
+    def _reset_filter_change_timer(self) -> None:
+        self.client.write_single_coil(CL_RESET_FILTER_TIMER, True)

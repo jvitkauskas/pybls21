@@ -9,9 +9,10 @@ To load:
 `client.poll()`
 
 The following functions are available:
-`turn_on`
-`turn_off`
-`set_hvac_mode`
-`set_fan_mode`
-`set_manual_fan_speed_percent`
-`set_temperature`
+`turn_on()`
+`turn_off()`
+`set_hvac_mode(hvac_mode: HVACMode)`
+`set_fan_mode(mode: int)`
+`set_manual_fan_speed_percent(speed_percent: int)`
+`set_temperature(temp_celsius: int)`
+`reset_filter_change_timer()`
