@@ -1,5 +1,7 @@
 from pyModbusTCP.client import ModbusClient
 
+from .constants import *
+from .exceptions import *
 from .models import ClimateDevice, HVACMode, HVACAction, TEMP_CELSIUS, ClimateEntityFeature
 
 from typing import Callable, Optional
@@ -63,33 +65,31 @@ class S21Client:
                 self.client.close()  # Also, long connections break over time and become unusable
 
     def _poll(self) -> ClimateDevice:
+        if self.client.read_input_registers(IR_DeviceTYPE)[0] != 1:
+            raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
+
         coils = self.client.read_coils(0, 4)
         holding_registers = self.client.read_holding_registers(0, 45)
         input_registers = self.client.read_input_registers(0, 39)
 
-        is_on: bool = coils[0]
-        is_boosting: bool = coils[3]
-        set_temperature: int = holding_registers[44]
-        current_humidity: int = input_registers[10]
-        filter_state: int = input_registers[31]
-        alarm_state: int = input_registers[38]
-        max_fan_level: int = holding_registers[1]
-        current_fan_level: int = holding_registers[2]  # 255 - manual
-        temp_before_heating_x10: int = input_registers[1]
-        temp_after_heating_x10: int = input_registers[2]
-        firmware_info: list[int] = input_registers[34:37]
-        device_type: int = input_registers[37]
-        operation_mode: int = holding_registers[43]
-        manual_fan_speed_percent: int = holding_registers[17]
-
-        self.client.close()
-
-        model: str = "S21" if device_type == 1 else "Unknown"
+        is_on: bool = coils[CL_POWER]
+        is_boosting: bool = coils[CL_Boost_MODE]
+        set_temperature: int = holding_registers[HR_SetTEMP]
+        current_humidity: int = input_registers[IR_CurRH_Int]
+        filter_state: int = input_registers[IR_StateFILTER]
+        alarm_state: int = input_registers[IR_ALARM]
+        max_fan_level: int = holding_registers[HR_MaxSPEED_MODE]
+        current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
+        temp_before_heating_x10: int = input_registers[IR_CurTEMP_SuAirIn]
+        temp_after_heating_x10: int = input_registers[IR_CurTEMP_SuAirOut]
+        firmware_info: list[int] = input_registers[IR_VerMAIN_FMW_start:IR_VerMAIN_FMW_end+1]
+        operation_mode: int = holding_registers[HR_OPERATION_MODE]
+        manual_fan_speed_percent: int = holding_registers[HR_ManualSPEED]
 
         self.device = ClimateDevice(
             available=True,
-            name=model,
-            unique_id=f'{model}_{self.host}_{self.port}',
+            name="Blauberg S21",
+            unique_id=f'S21_{self.host}_{self.port}',
             temperature_unit=TEMP_CELSIUS,  # Seems like no Fahrenheit option is available
             precision=1,
             current_temperature=temp_after_heating_x10 / 10,
@@ -113,7 +113,7 @@ class S21Client:
             fan_modes=[x + 1 for x in range(max_fan_level)] + [255],
             supported_features=ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE,
             manufacturer="Blauberg",
-            model=model,
+            model="S21",
             sw_version=_parse_firmware_version(firmware_info),
             is_boosting=is_boosting,
             current_intake_temperature=temp_before_heating_x10 / 10,
@@ -126,32 +126,32 @@ class S21Client:
         return self.device
 
     def _turn_on(self) -> None:
-        self.client.write_single_coil(0, True)
+        self.client.write_single_coil(CL_POWER, True)
 
     def _turn_off(self) -> None:
-        self.client.write_single_coil(0, False)
+        self.client.write_single_coil(CL_POWER, False)
 
     def _set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
-            self.turn_off()
+            self._turn_off()
         elif hvac_mode == HVACMode.FAN_ONLY:
-            self.turn_on()
-            self.client.write_single_register(43, 0)
+            self._turn_on()
+            self.client.write_single_register(HR_OPERATION_MODE, 0)
         elif hvac_mode == HVACMode.HEAT:
-            self.turn_on()
-            self.client.write_single_register(43, 1)
+            self._turn_on()
+            self.client.write_single_register(HR_OPERATION_MODE, 1)
         elif hvac_mode == HVACMode.COOL:
-            self.turn_on()
-            self.client.write_single_register(43, 2)
+            self._turn_on()
+            self.client.write_single_register(HR_OPERATION_MODE, 2)
         elif hvac_mode == HVACMode.AUTO:
-            self.turn_on()
-            self.client.write_single_register(43, 3)
+            self._turn_on()
+            self.client.write_single_register(HR_OPERATION_MODE, 3)
 
     def _set_fan_mode(self, mode: int) -> None:
-        self.client.write_single_register(2, mode)
+        self.client.write_single_register(HR_SPEED_MODE, mode)
 
     def _set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        self.client.write_single_register(17, speed_percent)
+        self.client.write_single_register(HR_ManualSPEED, speed_percent)
 
     def _set_temperature(self, temp_celsius: int) -> None:
-        self.client.write_single_register(44, temp_celsius)
+        self.client.write_single_register(HR_SetTEMP, temp_celsius)
