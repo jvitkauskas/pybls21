@@ -101,10 +101,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.FAN_ONLY)
         self.assertEqual(device.hvac_action, HVACAction.FAN)
 
-    async def test_poll_when_heating_mode_is_set_and_temperature_is_not_reached(self):
+    async def test_poll_when_heating_mode_is_set(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [1])
-        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
-        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
         device = await client.poll()
@@ -112,21 +110,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.HEAT)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    async def test_poll_when_heating_mode_is_set_and_temperature_is_reached(self):
-        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [1])
-        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [20])
-        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
-
-        client = S21Client(host=self.server.host, port=self.server.port)
-        device = await client.poll()
-
-        self.assertEqual(device.hvac_mode, HVACMode.HEAT)
-        self.assertEqual(device.hvac_action, HVACAction.IDLE)
-
-    async def test_poll_when_cooling_mode_is_set_and_temperature_is_not_reached(self):
+    async def test_poll_when_cooling_mode_is_set(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [2])
-        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
-        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
 
         client = S21Client(host=self.server.host, port=self.server.port)
         device = await client.poll()
@@ -134,18 +119,40 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.COOL)
         self.assertEqual(device.hvac_action, HVACAction.COOLING)
 
-    async def test_poll_when_cooling_mode_is_set_and_temperature_is_reached(self):
-        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [2])
+    async def test_poll_when_auto_mode_is_set_and_output_temperature_is_bigger(self):
+        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        device = await client.poll()
+
+        self.assertEqual(device.hvac_mode, HVACMode.AUTO)
+        self.assertEqual(device.hvac_action, HVACAction.HEATING)
+
+    async def test_poll_when_auto_mode_is_set_and_temperature_is_reached(self):
+        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [20])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
         device = await client.poll()
 
-        self.assertEqual(device.hvac_mode, HVACMode.COOL)
+        self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    async def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_matches_out_temperature(self):
+    async def test_poll_when_auto_mode_is_set_and_output_temperature_is_lower(self):
+        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        device = await client.poll()
+
+        self.assertEqual(device.hvac_mode, HVACMode.AUTO)
+        self.assertEqual(device.hvac_action, HVACAction.COOLING)
+
+    async def test_poll_when_auto_mode_is_set_and_in_temperature_matches_out_temperature(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
@@ -156,7 +163,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    async def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_is_cooler_than_out_temperature(self):
+    async def test_poll_when_auto_mode_is_set_and_in_temperature_is_cooler_than_out_temperature(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [5])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
@@ -167,7 +174,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    async def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_is_hotter_than_out_temperature(self):
+    async def test_poll_when_auto_mode_is_set_and_in_temperature_is_hotter_than_out_temperature(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
