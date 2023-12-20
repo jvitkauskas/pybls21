@@ -9,13 +9,9 @@ from threading import Lock
 
 
 def _parse_firmware_version(firmware_info: List[int]) -> str:
-    major_minor = firmware_info[0]
-    major = (major_minor & 0xff00) >> 8
-    minor = major_minor & 0xff
+    major, minor = firmware_info[0].to_bytes(2, 'big')
 
-    day_month: int = firmware_info[1]
-    day: int = (day_month & 0xff00) >> 8
-    month: int = day_month & 0xff
+    day, month = firmware_info[1].to_bytes(2, 'big')
     year: int = firmware_info[2]
 
     return f'{major}.{minor} ({year}-{month:02d}-{day:02d})'
