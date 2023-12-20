@@ -117,6 +117,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     async def test_poll_when_heating_mode_is_set(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [1])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
 
         client = S21Client(host=self.server.host, port=self.server.port)
         device = await client.poll()
@@ -126,6 +128,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     async def test_poll_when_cooling_mode_is_set(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [2])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
         device = await client.poll()

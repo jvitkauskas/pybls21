@@ -121,15 +121,13 @@ class S21Client:
             else HVACAction.FAN
             if operation_mode == 0
             else HVACAction.HEATING
-            if (
-                operation_mode == 1
-                or (temp_before_heating_x10 < temp_after_heating_x10)
-            )
+            if operation_mode == 1
             else HVACAction.COOLING
-            if (
-                operation_mode == 2
-                or (temp_before_heating_x10 > temp_after_heating_x10)
-            )
+            if operation_mode == 2
+            else HVACAction.HEATING
+            if temp_before_heating_x10 < temp_after_heating_x10
+            else HVACAction.COOLING
+            if temp_before_heating_x10 > temp_after_heating_x10
             else HVACAction.IDLE,
             hvac_modes=[
                 HVACMode.OFF,
