@@ -12,7 +12,9 @@ def help():
     print("syntax: demo.py [options]")
     print("options:")
     print("    --host <hvac_ip>      ... network address of your HVAC device")
-    print("    --port [hvac_port]    ... optional TCP port if device is behind the proxy")
+    print(
+        "    --port [hvac_port]    ... optional TCP port if device is behind the proxy"
+    )
     print()
     print("examples:")
     print("    demo.py --host 192.168.0.125 --port 502")

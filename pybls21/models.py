@@ -1,7 +1,5 @@
-from typing import List, NamedTuple, Optional
-
 from enum import Enum
-
+from typing import List, NamedTuple, Optional
 
 TEMP_CELSIUS: str = "°C"
 

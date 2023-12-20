@@ -1,20 +1,26 @@
+from threading import Lock
+from typing import Callable, List, Optional
+
 from pymodbus.client import AsyncModbusTcpClient
 
 from .constants import *
 from .exceptions import *
-from .models import ClimateDevice, ClimateEntityFeature, HVACAction, HVACMode, TEMP_CELSIUS
-
-from typing import Callable, List, Optional
-from threading import Lock
+from .models import (
+    TEMP_CELSIUS,
+    ClimateDevice,
+    ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
+)
 
 
 def _parse_firmware_version(firmware_info: List[int]) -> str:
-    major, minor = firmware_info[0].to_bytes(2, 'big')
+    major, minor = firmware_info[0].to_bytes(2, "big")
 
-    day, month = firmware_info[1].to_bytes(2, 'big')
+    day, month = firmware_info[1].to_bytes(2, "big")
     year: int = firmware_info[2]
 
-    return f'{major}.{minor} ({year}-{month:02d}-{day:02d})'
+    return f"{major}.{minor} ({year}-{month:02d}-{day:02d})"
 
 
 class S21Client:
@@ -41,7 +47,9 @@ class S21Client:
         await self._do_with_connection(lambda: self._set_fan_mode(mode))
 
     async def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        await self._do_with_connection(lambda: self._set_manual_fan_speed_percent(speed_percent))
+        await self._do_with_connection(
+            lambda: self._set_manual_fan_speed_percent(speed_percent)
+        )
 
     async def set_temperature(self, temp_celsius: int) -> None:
         await self._do_with_connection(lambda: self._set_temperature(temp_celsius))
@@ -81,14 +89,16 @@ class S21Client:
         current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
         temp_before_heating_x10: int = input_registers[IR_CurTEMP_SuAirIn]
         temp_after_heating_x10: int = input_registers[IR_CurTEMP_SuAirOut]
-        firmware_info: List[int] = input_registers[IR_VerMAIN_FMW_start:IR_VerMAIN_FMW_end+1]
+        firmware_info: List[int] = input_registers[
+            IR_VerMAIN_FMW_start : IR_VerMAIN_FMW_end + 1
+        ]
         operation_mode: int = holding_registers[HR_OPERATION_MODE]
         manual_fan_speed_percent: int = holding_registers[HR_ManualSPEED]
 
         self.device = ClimateDevice(
             available=True,
             name="Blauberg S21",
-            unique_id=f'S21_{self.host}_{self.port}',
+            unique_id=f"S21_{self.host}_{self.port}",
             temperature_unit=TEMP_CELSIUS,  # Seems like no Fahrenheit option is available
             precision=1,
             current_temperature=temp_after_heating_x10 / 10,
@@ -97,20 +107,41 @@ class S21Client:
             min_temp=15,
             max_temp=30,
             current_humidity=None if current_humidity == 0 else current_humidity,
-            hvac_mode=HVACMode.OFF if not is_on
-            else HVACMode.FAN_ONLY if operation_mode == 0
-            else HVACMode.HEAT if operation_mode == 1
-            else HVACMode.COOL if operation_mode == 2
+            hvac_mode=HVACMode.OFF
+            if not is_on
+            else HVACMode.FAN_ONLY
+            if operation_mode == 0
+            else HVACMode.HEAT
+            if operation_mode == 1
+            else HVACMode.COOL
+            if operation_mode == 2
             else HVACMode.AUTO,
-            hvac_action=HVACAction.OFF if not is_on
-            else HVACAction.FAN if operation_mode == 0
-            else HVACAction.HEATING if (operation_mode == 1 or (temp_before_heating_x10 < temp_after_heating_x10))
-            else HVACAction.COOLING if (operation_mode == 2 or (temp_before_heating_x10 > temp_after_heating_x10))
+            hvac_action=HVACAction.OFF
+            if not is_on
+            else HVACAction.FAN
+            if operation_mode == 0
+            else HVACAction.HEATING
+            if (
+                operation_mode == 1
+                or (temp_before_heating_x10 < temp_after_heating_x10)
+            )
+            else HVACAction.COOLING
+            if (
+                operation_mode == 2
+                or (temp_before_heating_x10 > temp_after_heating_x10)
+            )
             else HVACAction.IDLE,
-            hvac_modes=[HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.AUTO, HVACMode.FAN_ONLY],
+            hvac_modes=[
+                HVACMode.OFF,
+                HVACMode.HEAT,
+                HVACMode.COOL,
+                HVACMode.AUTO,
+                HVACMode.FAN_ONLY,
+            ],
             fan_mode=current_fan_level,
             fan_modes=[x + 1 for x in range(max_fan_level)] + [255],
-            supported_features=ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE,
+            supported_features=ClimateEntityFeature.TARGET_TEMPERATURE
+            | ClimateEntityFeature.FAN_MODE,
             manufacturer="Blauberg",
             model="S21",
             sw_version=_parse_firmware_version(firmware_info),

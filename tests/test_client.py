@@ -1,17 +1,19 @@
 import unittest
 
-from pyModbusTCP.server import ModbusServer, DataBank
+from pyModbusTCP.server import DataBank, ModbusServer
 
 from pybls21.client import S21Client
 from pybls21.constants import *
 from pybls21.exceptions import *
-from pybls21.models import HVACAction, HVACMode, ClimateDevice, ClimateEntityFeature
+from pybls21.models import ClimateDevice, ClimateEntityFeature, HVACAction, HVACMode
 
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ModbusServer(host='localhost', port=5502, no_block=True, data_bank=TestDataBank())
+        cls.server = ModbusServer(
+            host="localhost", port=5502, no_block=True, data_bank=TestDataBank()
+        )
         cls.server.start()
 
     @classmethod
@@ -41,39 +43,51 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.server.data_bank.set_input_registers(IR_ALARM, [2])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [108])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [192])
-        self.server.data_bank.set_input_registers(IR_VerMAIN_FMW_start, [36, 2053, 2019])
+        self.server.data_bank.set_input_registers(
+            IR_VerMAIN_FMW_start, [36, 2053, 2019]
+        )
 
         client = S21Client(host=self.server.host, port=self.server.port)
         device = await client.poll()
 
-        self.assertEqual(device, ClimateDevice(
-            available=True,
-            name="Blauberg S21",
-            unique_id=f'S21_{self.server.host}_{self.server.port}',
-            temperature_unit="°C",
-            precision=1,
-            current_temperature=19.2,
-            target_temperature=15,
-            target_temperature_step=1,
-            min_temp=15,
-            max_temp=30,
-            current_humidity=None,
-            hvac_mode=HVACMode.FAN_ONLY,
-            hvac_action=HVACAction.FAN,
-            hvac_modes=[HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.AUTO, HVACMode.FAN_ONLY],
-            fan_mode=2,
-            fan_modes=[1, 2, 3, 255],
-            supported_features=ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE,
-            manufacturer="Blauberg",
-            model="S21",
-            sw_version="0.36 (2019-05-08)",
-            is_boosting=False,
-            current_intake_temperature=10.8,
-            manual_fan_speed_percent=100,
-            max_fan_level=3,
-            filter_state=3,
-            alarm_state=2
-        ))
+        self.assertEqual(
+            device,
+            ClimateDevice(
+                available=True,
+                name="Blauberg S21",
+                unique_id=f"S21_{self.server.host}_{self.server.port}",
+                temperature_unit="°C",
+                precision=1,
+                current_temperature=19.2,
+                target_temperature=15,
+                target_temperature_step=1,
+                min_temp=15,
+                max_temp=30,
+                current_humidity=None,
+                hvac_mode=HVACMode.FAN_ONLY,
+                hvac_action=HVACAction.FAN,
+                hvac_modes=[
+                    HVACMode.OFF,
+                    HVACMode.HEAT,
+                    HVACMode.COOL,
+                    HVACMode.AUTO,
+                    HVACMode.FAN_ONLY,
+                ],
+                fan_mode=2,
+                fan_modes=[1, 2, 3, 255],
+                supported_features=ClimateEntityFeature.TARGET_TEMPERATURE
+                | ClimateEntityFeature.FAN_MODE,
+                manufacturer="Blauberg",
+                model="S21",
+                sw_version="0.36 (2019-05-08)",
+                is_boosting=False,
+                current_intake_temperature=10.8,
+                manual_fan_speed_percent=100,
+                max_fan_level=3,
+                filter_state=3,
+                alarm_state=2,
+            ),
+        )
 
     async def test_poll_when_device_is_off(self):
         self.server.data_bank.set_coils(CL_POWER, [False])
@@ -152,7 +166,9 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.COOLING)
 
-    async def test_poll_when_auto_mode_is_set_and_in_temperature_matches_out_temperature(self):
+    async def test_poll_when_auto_mode_is_set_and_in_temperature_matches_out_temperature(
+        self,
+    ):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
@@ -163,7 +179,9 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    async def test_poll_when_auto_mode_is_set_and_in_temperature_is_cooler_than_out_temperature(self):
+    async def test_poll_when_auto_mode_is_set_and_in_temperature_is_cooler_than_out_temperature(
+        self,
+    ):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [5])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
@@ -174,7 +192,9 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    async def test_poll_when_auto_mode_is_set_and_in_temperature_is_hotter_than_out_temperature(self):
+    async def test_poll_when_auto_mode_is_set_and_in_temperature_is_hotter_than_out_temperature(
+        self,
+    ):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
@@ -315,7 +335,9 @@ class TestDataBank(DataBank):
     __test__ = False
 
     def __init__(self):
-        super().__init__(coils_size=25, d_inputs_size=72, h_regs_size=182, i_regs_size=51)
+        super().__init__(
+            coils_size=25, d_inputs_size=72, h_regs_size=182, i_regs_size=51
+        )
         self.reset()
 
     def reset(self):
