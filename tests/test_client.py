@@ -8,7 +8,7 @@ from pybls21.exceptions import *
 from pybls21.models import HVACAction, HVACMode, ClimateDevice, ClimateEntityFeature
 
 
-class TestClient(unittest.TestCase):
+class TestClient(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = ModbusServer(host='localhost', port=5502, no_block=True, data_bank=TestDataBank())
@@ -21,13 +21,14 @@ class TestClient(unittest.TestCase):
     def setUp(self):
         self.server.data_bank.reset()
 
-    def test_poll_when_device_type_is_incorrect_raises_exception(self):
+    async def test_poll_when_device_type_is_incorrect_raises_exception(self):
         self.server.data_bank.set_input_registers(IR_DeviceTYPE, [0])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        self.assertRaises(UnsupportedDeviceException, client.poll)
+        with self.assertRaises(UnsupportedDeviceException):
+            await client.poll()
 
-    def test_poll(self):
+    async def test_poll(self):
         self.server.data_bank.set_coils(CL_POWER, [True])
         self.server.data_bank.set_coils(CL_Boost_MODE, [False])
         self.server.data_bank.set_holding_registers(HR_SetTEMP, [15])
@@ -43,7 +44,7 @@ class TestClient(unittest.TestCase):
         self.server.data_bank.set_input_registers(IR_VerMAIN_FMW_start, [36, 2053, 2019])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device, ClimateDevice(
             available=True,
@@ -74,231 +75,231 @@ class TestClient(unittest.TestCase):
             alarm_state=2
         ))
 
-    def test_poll_when_device_is_off(self):
+    async def test_poll_when_device_is_off(self):
         self.server.data_bank.set_coils(CL_POWER, [False])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.OFF)
         self.assertEqual(device.hvac_action, HVACAction.OFF)
 
-    def test_poll_when_humidity_is_available(self):
+    async def test_poll_when_humidity_is_available(self):
         self.server.data_bank.set_input_registers(IR_CurRH_Int, [42])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.current_humidity, 42)
 
-    def test_poll_when_ventilation_only_mode_is_set(self):
+    async def test_poll_when_ventilation_only_mode_is_set(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [0])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.FAN_ONLY)
         self.assertEqual(device.hvac_action, HVACAction.FAN)
 
-    def test_poll_when_heating_mode_is_set_and_temperature_is_not_reached(self):
+    async def test_poll_when_heating_mode_is_set_and_temperature_is_not_reached(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [1])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.HEAT)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    def test_poll_when_heating_mode_is_set_and_temperature_is_reached(self):
+    async def test_poll_when_heating_mode_is_set_and_temperature_is_reached(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [1])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [20])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.HEAT)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    def test_poll_when_cooling_mode_is_set_and_temperature_is_not_reached(self):
+    async def test_poll_when_cooling_mode_is_set_and_temperature_is_not_reached(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [2])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.COOL)
         self.assertEqual(device.hvac_action, HVACAction.COOLING)
 
-    def test_poll_when_cooling_mode_is_set_and_temperature_is_reached(self):
+    async def test_poll_when_cooling_mode_is_set_and_temperature_is_reached(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [2])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [20])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.COOL)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_matches_out_temperature(self):
+    async def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_matches_out_temperature(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_is_cooler_than_out_temperature(self):
+    async def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_is_cooler_than_out_temperature(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [5])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_is_hotter_than_out_temperature(self):
+    async def test_poll_when_cooling_mode_is_set_to_auto_and_in_temperature_is_hotter_than_out_temperature(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.COOLING)
 
-    def test_poll_when_is_boosting(self):
+    async def test_poll_when_is_boosting(self):
         self.server.data_bank.set_coils(CL_Boost_MODE, [True])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        device = client.poll()
+        device = await client.poll()
 
         self.assertTrue(device.is_boosting)
 
-    def test_turn_on(self):
+    async def test_turn_on(self):
         self.server.data_bank.set_coils(CL_POWER, [False])
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [10])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.turn_on()
-        device = client.poll()
+        await client.turn_on()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.IDLE)
 
-    def test_turn_off(self):
+    async def test_turn_off(self):
         self.server.data_bank.set_coils(CL_POWER, [True])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.turn_off()
-        device = client.poll()
+        await client.turn_off()
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.OFF)
         self.assertEqual(device.hvac_action, HVACAction.OFF)
 
-    def test_set_hvac_mode_off(self):
+    async def test_set_hvac_mode_off(self):
         self.server.data_bank.set_coils(CL_POWER, [True])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_hvac_mode(HVACMode.OFF)
-        device = client.poll()
+        await client.set_hvac_mode(HVACMode.OFF)
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.OFF)
         self.assertEqual(device.hvac_action, HVACAction.OFF)
 
-    def test_set_hvac_mode_heat(self):
+    async def test_set_hvac_mode_heat(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_hvac_mode(HVACMode.HEAT)
-        device = client.poll()
+        await client.set_hvac_mode(HVACMode.HEAT)
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.HEAT)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    def test_set_hvac_mode_cool(self):
+    async def test_set_hvac_mode_cool(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [5])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_hvac_mode(HVACMode.COOL)
-        device = client.poll()
+        await client.set_hvac_mode(HVACMode.COOL)
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.COOL)
         self.assertEqual(device.hvac_action, HVACAction.COOLING)
 
-    def test_set_hvac_mode_auto(self):
+    async def test_set_hvac_mode_auto(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [1])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_hvac_mode(HVACMode.AUTO)
-        device = client.poll()
+        await client.set_hvac_mode(HVACMode.AUTO)
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.AUTO)
         self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
-    def test_set_hvac_mode_fan_only(self):
+    async def test_set_hvac_mode_fan_only(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_hvac_mode(HVACMode.FAN_ONLY)
-        device = client.poll()
+        await client.set_hvac_mode(HVACMode.FAN_ONLY)
+        device = await client.poll()
 
         self.assertEqual(device.hvac_mode, HVACMode.FAN_ONLY)
         self.assertEqual(device.hvac_action, HVACAction.FAN)
 
-    def test_set_fan_mode_level2(self):
+    async def test_set_fan_mode_level2(self):
         self.server.data_bank.set_holding_registers(HR_SPEED_MODE, [1])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_fan_mode(2)
-        device = client.poll()
+        await client.set_fan_mode(2)
+        device = await client.poll()
 
         self.assertEqual(device.fan_mode, 2)
 
-    def test_set_fan_mode_custom(self):
+    async def test_set_fan_mode_custom(self):
         self.server.data_bank.set_holding_registers(HR_SPEED_MODE, [1])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_fan_mode(255)
-        device = client.poll()
+        await client.set_fan_mode(255)
+        device = await client.poll()
 
         self.assertEqual(device.fan_mode, 255)
 
-    def test_set_manual_fan_speed_percent(self):
+    async def test_set_manual_fan_speed_percent(self):
         self.server.data_bank.set_holding_registers(HR_ManualSPEED, [0])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_manual_fan_speed_percent(42)
-        device = client.poll()
+        await client.set_manual_fan_speed_percent(42)
+        device = await client.poll()
 
         self.assertEqual(device.manual_fan_speed_percent, 42)
 
-    def test_set_temperature(self):
+    async def test_set_temperature(self):
         self.server.data_bank.set_holding_registers(HR_SetTEMP, [0])
 
         client = S21Client(host=self.server.host, port=self.server.port)
-        client.set_temperature(20)
-        device = client.poll()
+        await client.set_temperature(20)
+        device = await client.poll()
 
         self.assertEqual(device.target_temperature, 20)
 

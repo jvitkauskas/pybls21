@@ -45,7 +45,7 @@ async def main():
 
     client = S21Client(args.host, args.port)
 
-    status = client.poll()
+    status = await client.poll()
 
     print(repr(status))
 

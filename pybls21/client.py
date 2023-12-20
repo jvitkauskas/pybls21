@@ -1,4 +1,4 @@
-from pyModbusTCP.client import ModbusClient
+from pymodbus.client import AsyncModbusTcpClient
 
 from .constants import *
 from .exceptions import *
@@ -25,41 +25,41 @@ class S21Client:
     def __init__(self, host: str, port: int = 502):
         self.host = host
         self.port = port
-        self.client = ModbusClient(host=self.host, port=self.port, auto_open=False, auto_close=False)
+        self.client = AsyncModbusTcpClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
         self.lock = Lock()
 
-    def poll(self) -> ClimateDevice:
-        return self._do_with_connection(self._poll)
+    async def poll(self) -> ClimateDevice:
+        return await self._do_with_connection(self._poll)
 
-    def turn_on(self) -> None:
-        self._do_with_connection(self._turn_on)
+    async def turn_on(self) -> None:
+        await self._do_with_connection(self._turn_on)
 
-    def turn_off(self) -> None:
-        self._do_with_connection(self._turn_off)
+    async def turn_off(self) -> None:
+        await self._do_with_connection(self._turn_off)
 
-    def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        self._do_with_connection(lambda: self._set_hvac_mode(hvac_mode))
+    async def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        await self._do_with_connection(lambda: self._set_hvac_mode(hvac_mode))
 
-    def set_fan_mode(self, mode: int) -> None:
-        self._do_with_connection(lambda: self._set_fan_mode(mode))
+    async def set_fan_mode(self, mode: int) -> None:
+        await self._do_with_connection(lambda: self._set_fan_mode(mode))
 
-    def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        self._do_with_connection(lambda: self._set_manual_fan_speed_percent(speed_percent))
+    async def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
+        await self._do_with_connection(lambda: self._set_manual_fan_speed_percent(speed_percent))
 
-    def set_temperature(self, temp_celsius: int) -> None:
-        self._do_with_connection(lambda: self._set_temperature(temp_celsius))
+    async def set_temperature(self, temp_celsius: int) -> None:
+        await self._do_with_connection(lambda: self._set_temperature(temp_celsius))
 
-    def reset_filter_change_timer(self) -> None:
-        self._do_with_connection(self._reset_filter_change_timer)
+    async def reset_filter_change_timer(self) -> None:
+        await self._do_with_connection(self._reset_filter_change_timer)
 
-    def _do_with_connection(self, func: Callable):
+    async def _do_with_connection(self, func: Callable):
         with self.lock:  # Device does not support multiple connections
-            if not self.client.open():
+            if not await self.client.connect():
                 raise Exception("Failed to open connection")
 
             try:
-                return func()
+                return await func()
             except Exception:
                 if isinstance(self.device, ClimateDevice):
                     self.device.available = False
@@ -67,13 +67,13 @@ class S21Client:
             finally:
                 self.client.close()  # Also, long connections break over time and become unusable
 
-    def _poll(self) -> ClimateDevice:
-        if self.client.read_input_registers(IR_DeviceTYPE)[0] != 1:
+    async def _poll(self) -> ClimateDevice:
+        if (await self.client.read_input_registers(IR_DeviceTYPE)).registers[0] != 1:
             raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
 
-        coils = self.client.read_coils(0, 4)
-        holding_registers = self.client.read_holding_registers(0, 45)
-        input_registers = self.client.read_input_registers(0, 39)
+        coils = (await self.client.read_coils(0, 4)).bits
+        holding_registers = (await self.client.read_holding_registers(0, 45)).registers
+        input_registers = (await self.client.read_input_registers(0, 39)).registers
 
         is_on: bool = coils[CL_POWER]
         is_boosting: bool = coils[CL_Boost_MODE]
@@ -128,36 +128,36 @@ class S21Client:
 
         return self.device
 
-    def _turn_on(self) -> None:
-        self.client.write_single_coil(CL_POWER, True)
+    async def _turn_on(self) -> None:
+        await self.client.write_coil(CL_POWER, True)
 
-    def _turn_off(self) -> None:
-        self.client.write_single_coil(CL_POWER, False)
+    async def _turn_off(self) -> None:
+        await self.client.write_coil(CL_POWER, False)
 
-    def _set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+    async def _set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
-            self._turn_off()
+            await self._turn_off()
         elif hvac_mode == HVACMode.FAN_ONLY:
-            self._turn_on()
-            self.client.write_single_register(HR_OPERATION_MODE, 0)
+            await self._turn_on()
+            await self.client.write_register(HR_OPERATION_MODE, 0)
         elif hvac_mode == HVACMode.HEAT:
-            self._turn_on()
-            self.client.write_single_register(HR_OPERATION_MODE, 1)
+            await self._turn_on()
+            await self.client.write_register(HR_OPERATION_MODE, 1)
         elif hvac_mode == HVACMode.COOL:
-            self._turn_on()
-            self.client.write_single_register(HR_OPERATION_MODE, 2)
+            await self._turn_on()
+            await self.client.write_register(HR_OPERATION_MODE, 2)
         elif hvac_mode == HVACMode.AUTO:
-            self._turn_on()
-            self.client.write_single_register(HR_OPERATION_MODE, 3)
+            await self._turn_on()
+            await self.client.write_register(HR_OPERATION_MODE, 3)
 
-    def _set_fan_mode(self, mode: int) -> None:
-        self.client.write_single_register(HR_SPEED_MODE, mode)
+    async def _set_fan_mode(self, mode: int) -> None:
+        await self.client.write_register(HR_SPEED_MODE, mode)
 
-    def _set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        self.client.write_single_register(HR_ManualSPEED, speed_percent)
+    async def _set_manual_fan_speed_percent(self, speed_percent: int) -> None:
+        await self.client.write_register(HR_ManualSPEED, speed_percent)
 
-    def _set_temperature(self, temp_celsius: int) -> None:
-        self.client.write_single_register(HR_SetTEMP, temp_celsius)
+    async def _set_temperature(self, temp_celsius: int) -> None:
+        await self.client.write_register(HR_SetTEMP, temp_celsius)
 
-    def _reset_filter_change_timer(self) -> None:
-        self.client.write_single_coil(CL_RESET_FILTER_TIMER, True)
+    async def _reset_filter_change_timer(self) -> None:
+        await self.client.write_coil(CL_RESET_FILTER_TIMER, True)
