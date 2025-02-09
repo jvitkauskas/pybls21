@@ -75,9 +75,9 @@ class S21Client:
         if (await self.client.read_input_registers(IR_DeviceTYPE)).registers[0] != 1:
             raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
 
-        coils = (await self.client.read_coils(0, 4)).bits
-        holding_registers = (await self.client.read_holding_registers(0, 45)).registers
-        input_registers = (await self.client.read_input_registers(0, 39)).registers
+        coils = (await self.client.read_coils(0, count=4)).bits
+        holding_registers = (await self.client.read_holding_registers(0, count=45)).registers
+        input_registers = (await self.client.read_input_registers(0, count=39)).registers
 
         is_on: bool = coils[CL_POWER]
         is_boosting: bool = coils[CL_Boost_MODE]
