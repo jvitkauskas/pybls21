@@ -89,6 +89,8 @@ class S21Client:
         current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
         temp_before_heating_x10: int = input_registers[IR_CurTEMP_SuAirIn]
         temp_after_heating_x10: int = input_registers[IR_CurTEMP_SuAirOut]
+        supply_fan_speed: int = input_registers[IR_SuRPM]
+        extract_fan_speed: int = input_registers[IR_ExRPM]
         firmware_info: List[int] = input_registers[
             IR_VerMAIN_FMW_start : IR_VerMAIN_FMW_end + 1
         ]
@@ -149,6 +151,8 @@ class S21Client:
             max_fan_level=max_fan_level,
             filter_state=filter_state,
             alarm_state=alarm_state,
+            supply_fan_speed=supply_fan_speed,
+            extract_fan_speed=extract_fan_speed,
         )
 
         return self.device
