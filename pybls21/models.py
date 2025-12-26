@@ -52,3 +52,8 @@ class ClimateDevice(NamedTuple):
     max_fan_level: int
     filter_state: int
     alarm_state: int
+    current_temperature_fresh_air: float
+    current_temperature_consumed_air: float
+    filter_countdown: int
+    pressure_air_incoming: int
+    pressure_air_outgoing: int
