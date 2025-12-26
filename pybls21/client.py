@@ -57,6 +57,15 @@ class S21Client:
     async def reset_filter_change_timer(self) -> None:
         await self._do_with_connection(self._reset_filter_change_timer)
 
+    async def reset_alarm(self) -> None:
+        await self._do_with_connection(self._reset_alarm)
+
+    async def boost_on(self) -> None:
+        await self._do_with_connection(self._set_boost_on)
+
+    async def boost_off(self) -> None:
+        await self._do_with_connection(self._set_boost_off)
+
     async def _do_with_connection(self, func: Callable):
         with self.lock:  # Device does not support multiple connections
             if not await self.client.connect():
@@ -75,9 +84,9 @@ class S21Client:
         if (await self.client.read_input_registers(IR_DeviceTYPE)).registers[0] != 1:
             raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
 
-        coils = (await self.client.read_coils(0, count=4)).bits
-        holding_registers = (await self.client.read_holding_registers(0, count=45)).registers
-        input_registers = (await self.client.read_input_registers(0, count=39)).registers
+        coils = (await self.client.read_coils(0, 4)).bits
+        holding_registers = (await self.client.read_holding_registers(0, 45)).registers
+        input_registers = (await self.client.read_input_registers(0, 39)).registers
 
         is_on: bool = coils[CL_POWER]
         is_boosting: bool = coils[CL_Boost_MODE]
@@ -95,6 +104,14 @@ class S21Client:
         operation_mode: int = holding_registers[HR_OPERATION_MODE]
         manual_fan_speed_percent: int = holding_registers[HR_ManualSPEED]
 
+        # MaNi additions
+        temp_air_incoming: int = holding_registers[IR_CurTEMP_ExAirIn]
+        temp_air_outgoing: int = holding_registers[IR_CurTEMP_ExAirOut]
+        filter_countdown: int = holding_registers[IR_CurFILTER_TIMER]
+        pressure_air_incoming: int = holding_registers[IR_CurSuPRESS]
+        pressure_air_outgoing: int = holding_registers[IR_CurExPRESS]
+        # EO MaNi additions
+        
         self.device = ClimateDevice(
             available=True,
             name="Blauberg S21",
@@ -149,6 +166,14 @@ class S21Client:
             max_fan_level=max_fan_level,
             filter_state=filter_state,
             alarm_state=alarm_state,
+            
+            # MaNi additions
+            current_temperature_fresh_air=temp_air_incoming / 10,
+            current_temperature_consumed_air=temp_air_outgoing / 10,
+            filter_countdown=filter_countdown,
+            pressure_air_incoming=pressure_air_incoming,
+            pressure_air_outgoing=pressure_air_outgoing,
+            # EO MaNi additions
         )
 
         return self.device
@@ -186,3 +211,12 @@ class S21Client:
 
     async def _reset_filter_change_timer(self) -> None:
         await self.client.write_coil(CL_RESET_FILTER_TIMER, True)
+
+    async def _reset_alarm(self) -> None:
+        await self.client.write_coil(CL_RESET_ALARM, True)
+
+    async def _set_boost_on(self) -> None:
+        await self.client.write_coil(CL_BoostSWITCH_CTRL, True)
+        
+    async def _set_boost_off(self) -> None:
+        await self.client.write_coil(CL_BoostSWITCH_CTRL, False)
