@@ -52,3 +52,5 @@ class ClimateDevice(NamedTuple):
     max_fan_level: int
     filter_state: int
     alarm_state: int
+    supply_fan_speed: int
+    extract_fan_speed: int
