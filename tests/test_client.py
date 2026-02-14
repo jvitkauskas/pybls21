@@ -17,6 +17,15 @@ class ErrorResponse:
         return "ErrorResponse()"
 
 
+class SuccessResponse:
+    def __init__(self, *, registers=None, bits=None):
+        self.registers = registers
+        self.bits = bits
+
+    def isError(self):
+        return False
+
+
 class TestClient(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
@@ -52,6 +61,32 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         client.client.connect = AsyncMock(return_value=True)
         client.client.close = Mock()
         client.client.read_input_registers = AsyncMock(return_value=ErrorResponse())
+
+        with self.assertRaises(ModbusCommunicationException):
+            await client.poll()
+
+    async def test_poll_when_modbus_returns_empty_response_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+        client.client.close = Mock()
+        client.client.read_input_registers = AsyncMock(return_value=None)
+
+        with self.assertRaises(ModbusCommunicationException):
+            await client.poll()
+
+    async def test_poll_when_register_count_is_incomplete_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+        client.client.close = Mock()
+        client.client.read_input_registers = AsyncMock(
+            return_value=SuccessResponse(registers=[1])
+        )
+        client.client.read_coils = AsyncMock(
+            return_value=SuccessResponse(bits=[False] * 4)
+        )
+        client.client.read_holding_registers = AsyncMock(
+            return_value=SuccessResponse(registers=[0] * 10)
+        )
 
         with self.assertRaises(ModbusCommunicationException):
             await client.poll()
@@ -385,6 +420,30 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         device = await client.poll()
 
         self.assertEqual(device.target_temperature, 20)
+
+    async def test_reset_alarm(self):
+        self.server.data_bank.set_coils(CL_RESET_ALARM, [False])
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        await client.reset_alarm()
+
+        self.assertEqual(self.server.data_bank.get_coils(CL_RESET_ALARM, 1), [True])
+
+    async def test_boost_on(self):
+        self.server.data_bank.set_coils(CL_BoostSWITCH_CTRL, [False])
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        await client.boost_on()
+
+        self.assertEqual(self.server.data_bank.get_coils(CL_BoostSWITCH_CTRL, 1), [True])
+
+    async def test_boost_off(self):
+        self.server.data_bank.set_coils(CL_BoostSWITCH_CTRL, [True])
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        await client.boost_off()
+
+        self.assertEqual(self.server.data_bank.get_coils(CL_BoostSWITCH_CTRL, 1), [False])
 
 
 class TestDataBank(DataBank):

@@ -57,6 +57,15 @@ class S21Client:
     async def reset_filter_change_timer(self) -> None:
         await self._do_with_connection(self._reset_filter_change_timer)
 
+    async def reset_alarm(self) -> None:
+        await self._do_with_connection(self._reset_alarm)
+
+    async def boost_on(self) -> None:
+        await self._do_with_connection(self._set_boost_on)
+
+    async def boost_off(self) -> None:
+        await self._do_with_connection(self._set_boost_off)
+
     @staticmethod
     def _validate_modbus_response(response: Any, operation: str) -> Any:
         if response is None:
@@ -239,3 +248,12 @@ class S21Client:
 
     async def _reset_filter_change_timer(self) -> None:
         await self._write_coil(CL_RESET_FILTER_TIMER, True)
+
+    async def _reset_alarm(self) -> None:
+        await self._write_coil(CL_RESET_ALARM, True)
+
+    async def _set_boost_on(self) -> None:
+        await self._write_coil(CL_BoostSWITCH_CTRL, True)
+
+    async def _set_boost_off(self) -> None:
+        await self._write_coil(CL_BoostSWITCH_CTRL, False)

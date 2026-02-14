@@ -1,7 +1,9 @@
 # Coils
 CL_POWER = 0
 CL_Boost_MODE = 3
+CL_BoostSWITCH_CTRL = 13
 CL_RESET_FILTER_TIMER = 17
+CL_RESET_ALARM = 18
 
 # Holding registers
 HR_MaxSPEED_MODE = 1
