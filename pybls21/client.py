@@ -1,5 +1,5 @@
-from threading import Lock
-from typing import Callable, List, Optional
+import asyncio
+from typing import Any, Awaitable, Callable, List, Optional
 
 from pymodbus.client import AsyncModbusTcpClient
 
@@ -29,7 +29,7 @@ class S21Client:
         self.port = port
         self.client = AsyncModbusTcpClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
-        self.lock = Lock()
+        self.lock = asyncio.Lock()
 
     async def poll(self) -> ClimateDevice:
         return await self._do_with_connection(self._poll)
@@ -57,10 +57,59 @@ class S21Client:
     async def reset_filter_change_timer(self) -> None:
         await self._do_with_connection(self._reset_filter_change_timer)
 
-    async def _do_with_connection(self, func: Callable):
-        with self.lock:  # Device does not support multiple connections
+    @staticmethod
+    def _validate_modbus_response(response: Any, operation: str) -> Any:
+        if response is None:
+            raise ModbusCommunicationException(f"Modbus {operation} failed: empty response")
+
+        is_error = getattr(response, "isError", None)
+        if callable(is_error) and response.isError():
+            raise ModbusCommunicationException(
+                f"Modbus {operation} failed: {response!r}"
+            )
+
+        return response
+
+    def _get_registers(self, response: Any, count: int, operation: str) -> List[int]:
+        registers = getattr(self._validate_modbus_response(response, operation), "registers", None)
+        if not isinstance(registers, list) or len(registers) < count:
+            raise ModbusCommunicationException(
+                f"Modbus {operation} failed: expected {count} registers"
+            )
+        return registers
+
+    def _get_bits(self, response: Any, count: int, operation: str) -> List[bool]:
+        bits = getattr(self._validate_modbus_response(response, operation), "bits", None)
+        if not isinstance(bits, list) or len(bits) < count:
+            raise ModbusCommunicationException(
+                f"Modbus {operation} failed: expected {count} coil bits"
+            )
+        return bits
+
+    async def _read_input_registers(self, address: int, count: int) -> List[int]:
+        response = await self.client.read_input_registers(address, count=count)
+        return self._get_registers(response, count, f"read input registers at {address}")
+
+    async def _read_holding_registers(self, address: int, count: int) -> List[int]:
+        response = await self.client.read_holding_registers(address, count=count)
+        return self._get_registers(response, count, f"read holding registers at {address}")
+
+    async def _read_coils(self, address: int, count: int) -> List[bool]:
+        response = await self.client.read_coils(address, count=count)
+        return self._get_bits(response, count, f"read coils at {address}")
+
+    async def _write_register(self, address: int, value: int) -> None:
+        response = await self.client.write_register(address, value)
+        self._validate_modbus_response(response, f"write register {address}")
+
+    async def _write_coil(self, address: int, value: bool) -> None:
+        response = await self.client.write_coil(address, value)
+        self._validate_modbus_response(response, f"write coil {address}")
+
+    async def _do_with_connection(self, func: Callable[[], Awaitable[Any]]) -> Any:
+        async with self.lock:  # Device does not support multiple connections
             if not await self.client.connect():
-                raise Exception("Failed to open connection")
+                raise ModbusCommunicationException("Failed to open Modbus TCP connection")
 
             try:
                 return await func()
@@ -72,12 +121,12 @@ class S21Client:
                 self.client.close()  # Also, long connections break over time and become unusable
 
     async def _poll(self) -> ClimateDevice:
-        if (await self.client.read_input_registers(IR_DeviceTYPE)).registers[0] != 1:
+        if (await self._read_input_registers(IR_DeviceTYPE, count=1))[0] != 1:
             raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
 
-        coils = (await self.client.read_coils(0, count=4)).bits
-        holding_registers = (await self.client.read_holding_registers(0, count=45)).registers
-        input_registers = (await self.client.read_input_registers(0, count=39)).registers
+        coils = await self._read_coils(0, count=4)
+        holding_registers = await self._read_holding_registers(0, count=45)
+        input_registers = await self._read_input_registers(0, count=39)
 
         is_on: bool = coils[CL_POWER]
         is_boosting: bool = coils[CL_Boost_MODE]
@@ -158,35 +207,35 @@ class S21Client:
         return self.device
 
     async def _turn_on(self) -> None:
-        await self.client.write_coil(CL_POWER, True)
+        await self._write_coil(CL_POWER, True)
 
     async def _turn_off(self) -> None:
-        await self.client.write_coil(CL_POWER, False)
+        await self._write_coil(CL_POWER, False)
 
     async def _set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
             await self._turn_off()
         elif hvac_mode == HVACMode.FAN_ONLY:
             await self._turn_on()
-            await self.client.write_register(HR_OPERATION_MODE, 0)
+            await self._write_register(HR_OPERATION_MODE, 0)
         elif hvac_mode == HVACMode.HEAT:
             await self._turn_on()
-            await self.client.write_register(HR_OPERATION_MODE, 1)
+            await self._write_register(HR_OPERATION_MODE, 1)
         elif hvac_mode == HVACMode.COOL:
             await self._turn_on()
-            await self.client.write_register(HR_OPERATION_MODE, 2)
-        elif hvac_mode == HVACMode.AUTO:
+            await self._write_register(HR_OPERATION_MODE, 2)
+        else:
             await self._turn_on()
-            await self.client.write_register(HR_OPERATION_MODE, 3)
+            await self._write_register(HR_OPERATION_MODE, 3)
 
     async def _set_fan_mode(self, mode: int) -> None:
-        await self.client.write_register(HR_SPEED_MODE, mode)
+        await self._write_register(HR_SPEED_MODE, mode)
 
     async def _set_manual_fan_speed_percent(self, speed_percent: int) -> None:
-        await self.client.write_register(HR_ManualSPEED, speed_percent)
+        await self._write_register(HR_ManualSPEED, speed_percent)
 
     async def _set_temperature(self, temp_celsius: int) -> None:
-        await self.client.write_register(HR_SetTEMP, temp_celsius)
+        await self._write_register(HR_SetTEMP, temp_celsius)
 
     async def _reset_filter_change_timer(self) -> None:
-        await self.client.write_coil(CL_RESET_FILTER_TIMER, True)
+        await self._write_coil(CL_RESET_FILTER_TIMER, True)

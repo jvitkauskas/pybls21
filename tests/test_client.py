@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import AsyncMock, Mock
 
 from pyModbusTCP.server import DataBank, ModbusServer
 
@@ -6,6 +7,14 @@ from pybls21.client import S21Client
 from pybls21.constants import *
 from pybls21.exceptions import *
 from pybls21.models import ClimateDevice, ClimateEntityFeature, HVACAction, HVACMode
+
+
+class ErrorResponse:
+    def isError(self):
+        return True
+
+    def __repr__(self):
+        return "ErrorResponse()"
 
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
@@ -29,6 +38,32 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         client = S21Client(host=self.server.host, port=self.server.port)
         with self.assertRaises(UnsupportedDeviceException):
             await client.poll()
+
+    async def test_poll_when_connection_fails_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=False)
+        client.client.close = Mock()
+
+        with self.assertRaises(ModbusCommunicationException):
+            await client.poll()
+
+    async def test_poll_when_modbus_returns_error_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+        client.client.close = Mock()
+        client.client.read_input_registers = AsyncMock(return_value=ErrorResponse())
+
+        with self.assertRaises(ModbusCommunicationException):
+            await client.poll()
+
+    async def test_turn_on_when_write_fails_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+        client.client.close = Mock()
+        client.client.write_coil = AsyncMock(return_value=ErrorResponse())
+
+        with self.assertRaises(ModbusCommunicationException):
+            await client.turn_on()
 
     async def test_poll(self):
         self.server.data_bank.set_coils(CL_POWER, [True])
@@ -301,6 +336,19 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(device.hvac_mode, HVACMode.FAN_ONLY)
         self.assertEqual(device.hvac_action, HVACAction.FAN)
+
+    async def test_set_hvac_mode_unknown_defaults_to_auto(self):
+        self.server.data_bank.set_coils(CL_POWER, [False])
+        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [0])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [20])
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        await client.set_hvac_mode("unexpected-mode")
+        device = await client.poll()
+
+        self.assertEqual(device.hvac_mode, HVACMode.AUTO)
+        self.assertEqual(device.hvac_action, HVACAction.HEATING)
 
     async def test_set_fan_mode_level2(self):
         self.server.data_bank.set_holding_registers(HR_SPEED_MODE, [1])

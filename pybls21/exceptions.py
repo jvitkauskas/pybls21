@@ -1,3 +1,8 @@
 class UnsupportedDeviceException(Exception):
     def __init__(self, message):
         super().__init__(message)
+
+
+class ModbusCommunicationException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
