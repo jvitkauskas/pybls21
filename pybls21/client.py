@@ -23,6 +23,10 @@ def _parse_firmware_version(firmware_info: List[int]) -> str:
     return f"{major}.{minor} ({year}-{month:02d}-{day:02d})"
 
 
+def _to_signed_16bit(value: int) -> int:
+    return value - 0x10000 if value > 0x7FFF else value
+
+
 class S21Client:
     def __init__(self, host: str, port: int = 502):
         self.host = host
@@ -44,14 +48,17 @@ class S21Client:
         await self._do_with_connection(lambda: self._set_hvac_mode(hvac_mode))
 
     async def set_fan_mode(self, mode: int) -> None:
+        self._validate_fan_mode(mode)
         await self._do_with_connection(lambda: self._set_fan_mode(mode))
 
     async def set_manual_fan_speed_percent(self, speed_percent: int) -> None:
+        self._validate_manual_fan_speed_percent(speed_percent)
         await self._do_with_connection(
             lambda: self._set_manual_fan_speed_percent(speed_percent)
         )
 
     async def set_temperature(self, temp_celsius: int) -> None:
+        self._validate_temperature(temp_celsius)
         await self._do_with_connection(lambda: self._set_temperature(temp_celsius))
 
     async def reset_filter_change_timer(self) -> None:
@@ -94,6 +101,21 @@ class S21Client:
                 f"Modbus {operation} failed: expected {count} coil bits"
             )
         return bits
+
+    @staticmethod
+    def _validate_fan_mode(mode: int) -> None:
+        if not isinstance(mode, int) or mode not in (1, 2, 3, 4, 5, 255):
+            raise ValueError("Fan mode must be one of: 1, 2, 3, 4, 5, 255")
+
+    @staticmethod
+    def _validate_manual_fan_speed_percent(speed_percent: int) -> None:
+        if not isinstance(speed_percent, int) or not 0 <= speed_percent <= 100:
+            raise ValueError("Manual fan speed percent must be between 0 and 100")
+
+    @staticmethod
+    def _validate_temperature(temp_celsius: int) -> None:
+        if not isinstance(temp_celsius, int) or not 15 <= temp_celsius <= 30:
+            raise ValueError("Temperature must be between 15 and 30 °C")
 
     async def _read_input_registers(self, address: int, count: int) -> List[int]:
         response = await self.client.read_input_registers(address, count=count)
@@ -145,8 +167,12 @@ class S21Client:
         alarm_state: int = input_registers[IR_ALARM]
         max_fan_level: int = holding_registers[HR_MaxSPEED_MODE]
         current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
-        temp_before_heating_x10: int = input_registers[IR_CurTEMP_SuAirIn]
-        temp_after_heating_x10: int = input_registers[IR_CurTEMP_SuAirOut]
+        temp_before_heating_x10: int = _to_signed_16bit(
+            input_registers[IR_CurTEMP_SuAirIn]
+        )
+        temp_after_heating_x10: int = _to_signed_16bit(
+            input_registers[IR_CurTEMP_SuAirOut]
+        )
         supply_fan_speed: int = input_registers[IR_SuRPM]
         extract_fan_speed: int = input_registers[IR_ExRPM]
         firmware_info: List[int] = input_registers[

@@ -211,6 +211,18 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.hvac_mode, HVACMode.COOL)
         self.assertEqual(device.hvac_action, HVACAction.COOLING)
 
+    async def test_poll_when_temperature_registers_are_negative_values(self):
+        self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [0xFFF6])  # -1.0 C
+        self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirOut, [100])  # 10.0 C
+
+        client = S21Client(host=self.server.host, port=self.server.port)
+        device = await client.poll()
+
+        self.assertEqual(device.current_intake_temperature, -1.0)
+        self.assertEqual(device.current_temperature, 10.0)
+        self.assertEqual(device.hvac_action, HVACAction.HEATING)
+
     async def test_poll_when_auto_mode_is_set_and_output_temperature_is_bigger(self):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [3])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [10])
@@ -403,6 +415,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(device.fan_mode, 255)
 
+    async def test_set_fan_mode_when_value_is_invalid_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+
+        for invalid_mode in (0, 6, 254):
+            with self.subTest(mode=invalid_mode):
+                with self.assertRaises(ValueError):
+                    await client.set_fan_mode(invalid_mode)
+
+        client.client.connect.assert_not_called()
+
     async def test_set_manual_fan_speed_percent(self):
         self.server.data_bank.set_holding_registers(HR_ManualSPEED, [0])
 
@@ -412,6 +435,19 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(device.manual_fan_speed_percent, 42)
 
+    async def test_set_manual_fan_speed_percent_when_value_is_invalid_raises_exception(
+        self,
+    ):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+
+        for invalid_speed in (-1, 101):
+            with self.subTest(speed=invalid_speed):
+                with self.assertRaises(ValueError):
+                    await client.set_manual_fan_speed_percent(invalid_speed)
+
+        client.client.connect.assert_not_called()
+
     async def test_set_temperature(self):
         self.server.data_bank.set_holding_registers(HR_SetTEMP, [0])
 
@@ -420,6 +456,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         device = await client.poll()
 
         self.assertEqual(device.target_temperature, 20)
+
+    async def test_set_temperature_when_value_is_invalid_raises_exception(self):
+        client = S21Client(host=self.server.host, port=self.server.port)
+        client.client.connect = AsyncMock(return_value=True)
+
+        for invalid_temperature in (14, 31):
+            with self.subTest(temperature=invalid_temperature):
+                with self.assertRaises(ValueError):
+                    await client.set_temperature(invalid_temperature)
+
+        client.client.connect.assert_not_called()
 
     async def test_reset_alarm(self):
         self.server.data_bank.set_coils(CL_RESET_ALARM, [False])
