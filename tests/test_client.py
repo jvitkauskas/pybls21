@@ -39,6 +39,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.server.data_bank.set_holding_registers(HR_OPERATION_MODE, [0])
         self.server.data_bank.set_holding_registers(HR_ManualSPEED, [100])
         self.server.data_bank.set_input_registers(IR_CurRH_Int, [0])
+        self.server.data_bank.set_input_registers(IR_SuRPM, [10])
+        self.server.data_bank.set_input_registers(IR_ExRPM, [20])
         self.server.data_bank.set_input_registers(IR_StateFILTER, [3])
         self.server.data_bank.set_input_registers(IR_ALARM, [2])
         self.server.data_bank.set_input_registers(IR_CurTEMP_SuAirIn, [108])
@@ -86,6 +88,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
                 max_fan_level=3,
                 filter_state=3,
                 alarm_state=2,
+                supply_fan_speed=10,
+                extract_fan_speed=20
             ),
         )
 
