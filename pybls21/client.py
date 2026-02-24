@@ -1,5 +1,5 @@
-from threading import Lock
-from typing import Callable, List, Optional
+import asyncio
+from typing import Callable, List, Optional, Awaitable
 
 from pymodbus.client import AsyncModbusTcpClient
 
@@ -13,6 +13,7 @@ from .models import (
     HVACMode,
 )
 
+DEFAULT_TIMEOUT_S = 5
 
 def _parse_firmware_version(firmware_info: List[int]) -> str:
     major, minor = firmware_info[0].to_bytes(2, "big")
@@ -24,12 +25,13 @@ def _parse_firmware_version(firmware_info: List[int]) -> str:
 
 
 class S21Client:
-    def __init__(self, host: str, port: int = 502):
+    def __init__(self, host: str, port: int = 502, timeout_s: int = DEFAULT_TIMEOUT_S):
         self.host = host
         self.port = port
+        self.timeout_s = timeout_s
         self.client = AsyncModbusTcpClient(host=self.host, port=self.port)
         self.device: Optional[ClimateDevice] = None
-        self.lock = Lock()
+        self.lock = asyncio.Lock()
 
     async def poll(self) -> ClimateDevice:
         return await self._do_with_connection(self._poll)
@@ -57,13 +59,15 @@ class S21Client:
     async def reset_filter_change_timer(self) -> None:
         await self._do_with_connection(self._reset_filter_change_timer)
 
-    async def _do_with_connection(self, func: Callable):
-        with self.lock:  # Device does not support multiple connections
-            if not await self.client.connect():
-                raise Exception("Failed to open connection")
-
+    async def _do_with_connection(self, func: Callable[[], Awaitable]):
+        async with self.lock:  # Device does not support multiple connections
             try:
-                return await func()
+                async with asyncio.timeout(self.timeout_s):
+                    if not await self.client.connect():
+                        raise Exception("Failed to open connection")
+
+                    return await func()
+
             except Exception:
                 if isinstance(self.device, ClimateDevice):
                     self.device.available = False
