@@ -173,6 +173,15 @@ class S21Client:
         temp_after_heating_x10: int = _to_signed_16bit(
             input_registers[IR_CurTEMP_SuAirOut]
         )
+        temp_extract_air_x10: int = _to_signed_16bit(
+            input_registers[IR_CurTEMP_ExAirIn]
+        )
+        temp_exhaust_air_x10: int = _to_signed_16bit(
+            input_registers[IR_CurTEMP_ExAirOut]
+        )
+        supply_pressure: int = input_registers[IR_CurSuPRESS]
+        extract_pressure: int = input_registers[IR_CurExPRESS]
+        filter_countdown_days: int = input_registers[IR_CurFILTER_TIMER_DAYS]
         supply_fan_speed: int = input_registers[IR_SuRPM]
         extract_fan_speed: int = input_registers[IR_ExRPM]
         firmware_info: List[int] = input_registers[
@@ -237,6 +246,11 @@ class S21Client:
             alarm_state=alarm_state,
             supply_fan_speed=supply_fan_speed,
             extract_fan_speed=extract_fan_speed,
+            current_extract_temperature=temp_extract_air_x10 / 10,
+            current_exhaust_temperature=temp_exhaust_air_x10 / 10,
+            supply_pressure=supply_pressure,
+            extract_pressure=extract_pressure,
+            filter_countdown_days=filter_countdown_days,
         )
 
         return self.device

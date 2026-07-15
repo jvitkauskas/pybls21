@@ -54,3 +54,8 @@ class ClimateDevice(NamedTuple):
     alarm_state: int
     supply_fan_speed: int
     extract_fan_speed: int
+    current_extract_temperature: float
+    current_exhaust_temperature: float
+    supply_pressure: int
+    extract_pressure: int
+    filter_countdown_days: int
