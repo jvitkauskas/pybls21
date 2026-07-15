@@ -146,7 +146,9 @@ class S21Client:
                 return await func()
             except Exception:
                 if isinstance(self.device, ClimateDevice):
-                    self.device.available = False
+                    # ClimateDevice is a NamedTuple and therefore immutable,
+                    # so the flag has to be replaced instead of assigned.
+                    self.device = self.device._replace(available=False)
                 raise
             finally:
                 self.client.close()  # Also, long connections break over time and become unusable
