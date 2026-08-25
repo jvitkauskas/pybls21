@@ -11,6 +11,9 @@ HR_SPEED_MODE = 2
 HR_ManualSPEED = 17
 HR_OPERATION_MODE = 43
 HR_SetTEMP = 44
+HR_BPS_ROTOR_TYPE = 57
+HR_BPS_ROTOR_MODE = 74
+HR_SetBpsRotorMANUAL = 75
 
 # Input registers
 IR_CurTEMP_SuAirIn = 1
@@ -23,3 +26,5 @@ IR_VerMAIN_FMW_start = 34
 IR_VerMAIN_FMW_end = 36
 IR_DeviceTYPE = 37
 IR_ALARM = 38
+IR_BPS_ROTOR_U = 45
+IR_StatusBpsRotor = 51

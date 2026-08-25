@@ -16,3 +16,8 @@ The following functions are available:
 `set_manual_fan_speed_percent(speed_percent: int)`
 `set_temperature(temp_celsius: int)`
 `reset_filter_change_timer()`
+`reset_alarm()`
+`boost_on()`
+`boost_off()`
+`set_bypass_mode(mode: BypassMode)`
+`set_bypass_position(position_percent: int)`

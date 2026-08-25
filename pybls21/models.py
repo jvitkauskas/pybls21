@@ -25,6 +25,21 @@ class HVACAction(str, Enum):
     OFF = "off"
 
 
+class BypassType(int, Enum):
+    NOT_AVAILABLE = 0
+    BYPASS_TWO_POINT = 1  # Discrete open/closed bypass damper control
+    BYPASS_ANALOGUE = 2  # Bypass damper position controlled 0-100%
+    ROTOR_DISCRETE = 3  # Discrete on/off rotary heat exchanger control
+    ROTOR_ANALOGUE = 4  # Rotary heat exchanger speed controlled 0-100%
+    BYPASS_THREE_POINT = 5  # Bypass damper driven open/closed via timed pulses
+
+
+class BypassMode(int, Enum):
+    CLOSED = 0  # Close the bypass / start the rotor
+    OPEN = 1  # Open the bypass / stop the rotor (discrete), or manual % (analogue)
+    AUTO = 2  # Device controls bypass/rotor automatically based on temperature
+
+
 class ClimateDevice(NamedTuple):
     available: bool
     name: str
@@ -54,3 +69,7 @@ class ClimateDevice(NamedTuple):
     alarm_state: int
     supply_fan_speed: int
     extract_fan_speed: int
+    bypass_type: BypassType
+    bypass_mode: BypassMode
+    bypass_position: int
+    manual_bypass_position: int

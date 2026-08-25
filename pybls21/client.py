@@ -7,6 +7,8 @@ from .constants import *
 from .exceptions import *
 from .models import (
     TEMP_CELSIUS,
+    BypassMode,
+    BypassType,
     ClimateDevice,
     ClimateEntityFeature,
     HVACAction,
@@ -73,6 +75,16 @@ class S21Client:
     async def boost_off(self) -> None:
         await self._do_with_connection(self._set_boost_off)
 
+    async def set_bypass_mode(self, mode: BypassMode) -> None:
+        mode = BypassMode(mode)
+        await self._do_with_connection(lambda: self._set_bypass_mode(mode))
+
+    async def set_bypass_position(self, position_percent: int) -> None:
+        self._validate_bypass_position(position_percent)
+        await self._do_with_connection(
+            lambda: self._set_bypass_position(position_percent)
+        )
+
     @staticmethod
     def _validate_modbus_response(response: Any, operation: str) -> Any:
         if response is None:
@@ -117,6 +129,11 @@ class S21Client:
         if not isinstance(temp_celsius, int) or not 15 <= temp_celsius <= 30:
             raise ValueError("Temperature must be between 15 and 30 °C")
 
+    @staticmethod
+    def _validate_bypass_position(position_percent: int) -> None:
+        if not isinstance(position_percent, int) or not 0 <= position_percent <= 100:
+            raise ValueError("Bypass position percent must be between 0 and 100")
+
     async def _read_input_registers(self, address: int, count: int) -> List[int]:
         response = await self.client.read_input_registers(address, count=count)
         return self._get_registers(response, count, f"read input registers at {address}")
@@ -156,8 +173,8 @@ class S21Client:
             raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
 
         coils = await self._read_coils(0, count=4)
-        holding_registers = await self._read_holding_registers(0, count=45)
-        input_registers = await self._read_input_registers(0, count=39)
+        holding_registers = await self._read_holding_registers(0, count=76)
+        input_registers = await self._read_input_registers(0, count=52)
 
         is_on: bool = coils[CL_POWER]
         is_boosting: bool = coils[CL_Boost_MODE]
@@ -180,6 +197,10 @@ class S21Client:
         ]
         operation_mode: int = holding_registers[HR_OPERATION_MODE]
         manual_fan_speed_percent: int = holding_registers[HR_ManualSPEED]
+        bypass_type: BypassType = BypassType(holding_registers[HR_BPS_ROTOR_TYPE])
+        bypass_mode: BypassMode = BypassMode(holding_registers[HR_BPS_ROTOR_MODE])
+        manual_bypass_position: int = holding_registers[HR_SetBpsRotorMANUAL]
+        bypass_position: int = input_registers[IR_StatusBpsRotor]
 
         self.device = ClimateDevice(
             available=True,
@@ -237,6 +258,10 @@ class S21Client:
             alarm_state=alarm_state,
             supply_fan_speed=supply_fan_speed,
             extract_fan_speed=extract_fan_speed,
+            bypass_type=bypass_type,
+            bypass_mode=bypass_mode,
+            bypass_position=bypass_position,
+            manual_bypass_position=manual_bypass_position,
         )
 
         return self.device
@@ -283,3 +308,9 @@ class S21Client:
 
     async def _set_boost_off(self) -> None:
         await self._write_coil(CL_BoostSWITCH_CTRL, False)
+
+    async def _set_bypass_mode(self, mode: BypassMode) -> None:
+        await self._write_register(HR_BPS_ROTOR_MODE, int(mode))
+
+    async def _set_bypass_position(self, position_percent: int) -> None:
+        await self._write_register(HR_SetBpsRotorMANUAL, position_percent)
