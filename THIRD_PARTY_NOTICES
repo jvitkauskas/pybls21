@@ -1,0 +1,41 @@
+Third-party notices
+===================
+
+Ported S21 controls and telemetry
+--------------------------------
+
+This project includes code adapted from marni-xyz/pybls21 for timer and
+weekly-schedule activation, alarm details, timer and filter countdowns,
+airflow, operating time, and fan-performance readings. This notice applies
+to those incorporated portions and their adaptations.
+
+Source: https://github.com/marni-xyz/pybls21
+Revision: 4bbd1189811d7e96ec501a632aac7824e2ad907d
+
+The upstream fork attributes the operating-time, airflow, and fan-performance
+additions to birdie1. Contributor acknowledgements are also recorded in the
+README and Git commit history.
+
+The source project's copyright notice and MIT license follow:
+
+MIT License
+
+Copyright (c) 2026 marni-xyz / 2021 Julius Vitkauskas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

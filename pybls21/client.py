@@ -83,6 +83,18 @@ class S21Client:
     async def boost_off(self) -> None:
         await self._do_with_connection(self._set_boost_off)
 
+    async def set_timer_on(self) -> None:
+        await self._do_with_connection(lambda: self._write_coil(CL_TIMER, True))
+
+    async def set_timer_off(self) -> None:
+        await self._do_with_connection(lambda: self._write_coil(CL_TIMER, False))
+
+    async def set_scheduler_mode_on(self) -> None:
+        await self._do_with_connection(lambda: self._write_coil(CL_WEEK, True))
+
+    async def set_scheduler_mode_off(self) -> None:
+        await self._do_with_connection(lambda: self._write_coil(CL_WEEK, False))
+
     async def set_bypass_mode(self, mode: BypassMode) -> None:
         mode = BypassMode(mode)
         await self._do_with_connection(lambda: self._set_bypass_mode(mode))
@@ -146,13 +158,23 @@ class S21Client:
         response = await self.client.read_input_registers(address, count=count)
         return self._get_registers(response, count, f"read input registers at {address}")
 
-    async def _read_bypass_position(self) -> Optional[int]:
-        response = await self.client.read_input_registers(IR_StatusBpsRotor, count=1)
-        # Older firmware has no IR51. Only Illegal Data Address is optional;
+    async def _read_optional_input_registers(
+        self, address: int, count: int
+    ) -> Optional[List[int]]:
+        response = await self.client.read_input_registers(address, count=count)
+        # Older firmware lacks IR51-53. Only Illegal Data Address is optional;
         # timeouts, malformed replies and other device errors must still surface.
         if isinstance(response, ExceptionResponse) and response.exception_code == 2:
             return None
-        return self._get_registers(response, 1, "read bypass position")[0]
+        return self._get_registers(response, count, f"read input registers at {address}")
+
+    async def _read_alarm_codes(self) -> List[int]:
+        response = await self.client.read_discrete_inputs(
+            DI_ALARM_START, count=DI_ALARM_COUNT
+        )
+        bits = self._get_bits(response, DI_ALARM_COUNT, "read alarm codes")
+        # Modbus pads bit responses to whole bytes; ignore bits beyond code 52.
+        return [code for code in range(DI_ALARM_COUNT) if bits[code]]
 
     async def _read_holding_registers(self, address: int, count: int) -> List[int]:
         response = await self.client.read_holding_registers(address, count=count)
@@ -201,6 +223,7 @@ class S21Client:
         current_humidity: int = input_registers[IR_CurRH_Int]
         filter_state: int = input_registers[IR_StateFILTER]
         alarm_state: int = input_registers[IR_ALARM]
+        alarm_codes = await self._read_alarm_codes() if alarm_state else []
         max_fan_level: int = holding_registers[HR_MaxSPEED_MODE]
         current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
         temp_before_heating = _parse_temperature(
@@ -227,10 +250,21 @@ class S21Client:
             if bypass_type != BypassType.NOT_AVAILABLE
             else None
         )
-        bypass_position = (
-            await self._read_bypass_position()
+        bypass_registers = (
+            await self._read_optional_input_registers(IR_StatusBpsRotor, count=1)
             if bypass_type != BypassType.NOT_AVAILABLE
             else None
+        )
+        fan_percentages = await self._read_optional_input_registers(
+            IR_CurSuFanSpeed, count=2
+        )
+        timer_minutes, timer_seconds = divmod(input_registers[IR_CurTIMER_TIME], 256)
+        timer_hours = input_registers[IR_CurTIMER_TIME_HOURS] & 0xFF
+        filter_hours, filter_minutes = divmod(
+            input_registers[IR_CurFILTER_TIMER_HOURS_MINUTES], 256
+        )
+        operating_hours, operating_minutes = divmod(
+            input_registers[IR_TotalWorkingTime_HOURS_MINUTES], 256
         )
 
         self.device = ClimateDevice(
@@ -302,8 +336,28 @@ class S21Client:
             filter_countdown_days=input_registers[IR_CurFILTER_TIMER_DAYS],
             bypass_type=bypass_type,
             bypass_mode=bypass_mode,
-            bypass_position=bypass_position,
+            bypass_position=bypass_registers[0] if bypass_registers is not None else None,
             manual_bypass_position=manual_bypass_position,
+            is_timer=coils[CL_TIMER],
+            timer_countdown=f"{timer_hours:02d}:{timer_minutes:02d}:{timer_seconds:02d}",
+            is_schedule_mode=coils[CL_WEEK],
+            fan_level_schedule_mode=input_registers[IR_CurWeekSpeed],
+            fan_level_timer_mode=holding_registers[HR_TIMER_MODE],
+            alarm_codes=alarm_codes,
+            supply_airflow=input_registers[IR_CurSuAirFLOW],
+            extract_airflow=input_registers[IR_CurExAirFLOW],
+            operating_time_minutes=(
+                input_registers[IR_TotalWorkingTime_DAYS] * 1440
+                + operating_hours * 60 + operating_minutes
+            ),
+            filter_countdown_hours=filter_hours,
+            filter_countdown_minutes=filter_minutes,
+            supply_fan_speed_percent=(
+                fan_percentages[0] if fan_percentages is not None else None
+            ),
+            extract_fan_speed_percent=(
+                fan_percentages[1] if fan_percentages is not None else None
+            ),
         )
 
         return self.device

@@ -78,3 +78,16 @@ class ClimateDevice(NamedTuple):
     bypass_mode: Optional[BypassMode] = None
     bypass_position: Optional[int] = None
     manual_bypass_position: Optional[int] = None
+    is_timer: bool = False
+    timer_countdown: Optional[str] = None
+    is_schedule_mode: bool = False
+    fan_level_schedule_mode: Optional[int] = None
+    fan_level_timer_mode: Optional[int] = None
+    alarm_codes: Optional[List[int]] = None
+    supply_airflow: Optional[int] = None
+    extract_airflow: Optional[int] = None
+    operating_time_minutes: Optional[int] = None
+    filter_countdown_hours: Optional[int] = None
+    filter_countdown_minutes: Optional[int] = None
+    supply_fan_speed_percent: Optional[int] = None
+    extract_fan_speed_percent: Optional[int] = None
