@@ -109,3 +109,7 @@ invalidate cached availability.
 These additions are adapted from [marni-xyz's fork](https://github.com/marni-xyz/pybls21),
 including its operating-time, airflow, and fan-performance work attributed to
 [birdie1](https://github.com/birdie1).
+
+The copyright and MIT terms for these ported portions are retained in
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES), included in both source and wheel
+distributions.

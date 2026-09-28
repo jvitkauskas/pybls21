@@ -13,6 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/jvitkauskas/pybls21",
     packages=setuptools.find_packages(exclude=["tests"]),
+    license_files=["LICENSE", "THIRD_PARTY_NOTICES"],
     install_requires=["pymodbus>=3.13.1,<4.0"],
     classifiers=[
         "Programming Language :: Python :: 3",
