@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pybls21"
+version = "5.0.0"
+description = "Async Modbus TCP client for Blauberg S21 ventilation devices"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES"]
+authors = [{name = "Julius Vitkauskas", email = "zadintuvas@gmail.com"}]
+dependencies = ["pymodbus>=3.13.1,<4.0"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/jvitkauskas/pybls21"
+
+[project.optional-dependencies]
+dev = ["pyModbusTCP==0.3.0", "coverage[toml]>=7.6", "mypy>=1.15", "ruff>=0.11", "build>=1.2", "twine>=6"]
+
+[tool.setuptools.packages.find]
+include = ["pybls21*"]
+
+[tool.setuptools.package-data]
+pybls21 = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["pybls21"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.coverage.run]
+branch = true
+source = ["pybls21"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true

@@ -1,12 +1,8 @@
-from enum import Enum
-from typing import List, NamedTuple, Optional
+from dataclasses import dataclass
+from datetime import timedelta
+from enum import Enum, IntEnum
 
 TEMP_CELSIUS: str = "°C"
-
-
-class ClimateEntityFeature(int, Enum):
-    TARGET_TEMPERATURE = 1
-    FAN_MODE = 8
 
 
 class HVACMode(str, Enum):
@@ -25,7 +21,7 @@ class HVACAction(str, Enum):
     OFF = "off"
 
 
-class BypassType(int, Enum):
+class BypassType(IntEnum):
     NOT_AVAILABLE = 0
     BYPASS_TWO_POINT = 1  # Discrete open/closed bypass damper control
     BYPASS_ANALOGUE = 2  # Bypass damper position controlled 0-100%
@@ -34,60 +30,67 @@ class BypassType(int, Enum):
     BYPASS_THREE_POINT = 5  # Bypass damper driven open/closed via timed pulses
 
 
-class BypassMode(int, Enum):
+class BypassMode(IntEnum):
     CLOSED = 0  # Close the bypass / start the rotor
     OPEN = 1  # Open the bypass / stop the rotor (discrete), or manual % (analogue)
     AUTO = 2  # Device controls bypass/rotor automatically based on temperature
 
 
-class ClimateDevice(NamedTuple):
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ClimateDevice:
+    """Immutable snapshot of device state.
+
+    Temperatures are °C, humidity and positions are percent, pressures are Pa,
+    airflow is m³/h, and fan speeds are RPM unless named ``*_percent``.
+    None means unavailable/unsupported, never zero. HVAC action is inferred
+    from the configured mode and supply temperatures, not directly measured.
+    """
+
     available: bool
     name: str
-    unique_id: str
     temperature_unit: str
     precision: float
-    current_temperature: Optional[float]
+    current_temperature: float | None
     target_temperature: float
     target_temperature_step: float
     max_temp: float
     min_temp: float
-    current_humidity: Optional[float]
-    hvac_mode: str
-    hvac_action: Optional[str]
-    hvac_modes: List[str]
-    fan_mode: Optional[int]
-    fan_modes: Optional[List[int]]
-    supported_features: int
+    current_humidity: float | None
+    hvac_mode: HVACMode
+    hvac_action: HVACAction | None
+    hvac_modes: tuple[HVACMode, ...]
+    fan_mode: int | None
+    fan_modes: tuple[int, ...]
     manufacturer: str
-    model: Optional[str]
-    sw_version: Optional[str]
+    model: str | None
+    sw_version: str | None
     is_boosting: bool
-    current_intake_temperature: Optional[float]
+    current_intake_temperature: float | None
     manual_fan_speed_percent: int
     max_fan_level: int
     filter_state: int
     alarm_state: int
     supply_fan_speed: int
     extract_fan_speed: int
-    current_extract_temperature: Optional[float] = None
-    current_exhaust_temperature: Optional[float] = None
-    supply_pressure: Optional[int] = None
-    extract_pressure: Optional[int] = None
-    filter_countdown_days: Optional[int] = None
+    current_extract_temperature: float | None = None
+    current_exhaust_temperature: float | None = None
+    supply_pressure: int | None = None
+    extract_pressure: int | None = None
+    filter_countdown_days: int | None = None
     bypass_type: BypassType = BypassType.NOT_AVAILABLE
-    bypass_mode: Optional[BypassMode] = None
-    bypass_position: Optional[int] = None
-    manual_bypass_position: Optional[int] = None
+    bypass_mode: BypassMode | None = None
+    bypass_position: int | None = None
+    manual_bypass_position: int | None = None
     is_timer: bool = False
-    timer_countdown: Optional[str] = None
+    timer_countdown: timedelta | None = None
     is_schedule_mode: bool = False
-    fan_level_schedule_mode: Optional[int] = None
-    fan_level_timer_mode: Optional[int] = None
-    alarm_codes: Optional[List[int]] = None
-    supply_airflow: Optional[int] = None
-    extract_airflow: Optional[int] = None
-    operating_time_minutes: Optional[int] = None
-    filter_countdown_hours: Optional[int] = None
-    filter_countdown_minutes: Optional[int] = None
-    supply_fan_speed_percent: Optional[int] = None
-    extract_fan_speed_percent: Optional[int] = None
+    fan_level_schedule_mode: int | None = None
+    fan_level_timer_mode: int | None = None
+    alarm_codes: tuple[int, ...] = ()
+    supply_airflow: int | None = None
+    extract_airflow: int | None = None
+    operating_time_minutes: int | None = None
+    filter_countdown_hours: int | None = None
+    filter_countdown_minutes: int | None = None
+    supply_fan_speed_percent: int | None = None
+    extract_fan_speed_percent: int | None = None

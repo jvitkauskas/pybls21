@@ -16,13 +16,14 @@ Core capabilities in this project:
 
 ## Repository Map
 
-- `pybls21/pybls21/client.py`: Main async client implementation (`S21Client`).
-- `pybls21/pybls21/constants.py`: Modbus register/coil constants.
-- `pybls21/pybls21/models.py`: Data models and HVAC enums.
-- `pybls21/pybls21/exceptions.py`: Custom exceptions.
-- `pybls21/tests/test_client.py`: Async unit tests with a local Modbus test server.
-- `pybls21/demo.py`: Usage example.
-- `pybls21/setup.py`: Packaging metadata.
+- `pybls21/client.py`: Main async client implementation (`S21Client`).
+- `pybls21/constants.py`: Modbus register/coil constants.
+- `pybls21/models.py`: Data models and HVAC enums.
+- `pybls21/_decoder.py`: Pure register decoding.
+- `pybls21/exceptions.py`: Custom exceptions.
+- `tests/test_client.py`: Async unit tests with a local Modbus test server.
+- `demo.py`: Usage example.
+- `pyproject.toml`: Packaging metadata and tool configuration.
 
 ## Development Setup
 
@@ -37,10 +38,16 @@ pip install -e .
 
 ## Test Commands
 
-Run all tests:
+Run all checks:
 
 ```bash
-python -m unittest -v
+ruff check .
+ruff format --check .
+mypy
+python -m coverage run -m unittest -v
+python -m coverage report
+python -m build
+python -m twine check dist/*
 ```
 
 Run one test module:
@@ -53,7 +60,7 @@ python -m unittest -v tests.test_client
 
 - Keep all public client methods async.
 - Preserve compatibility with `pymodbus>=3.13.1,<4.0`.
-- When changing Modbus mappings, update tests in `pybls21/tests/test_client.py` in the same change.
+- When changing Modbus mappings, update tests in `tests/test_client.py` in the same change.
 - Keep API behavior stable unless explicitly requested; this package may be used by Home Assistant integrations.
 
 ## Verification Checklist
