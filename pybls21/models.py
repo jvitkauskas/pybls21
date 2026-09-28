@@ -178,3 +178,11 @@ class ClimateDevice:
         default=None,
         doc="Actual extract fan performance in percent (0–100); None for unsupported or invalid readings.",
     )
+    is_heating: bool | None = field(
+        default=None,
+        doc="Controller heater-operation indication (DI7), independent of the selected mode; None if not populated.",
+    )
+    is_cooling: bool | None = field(
+        default=None,
+        doc="Controller cooler-operation indication (DI8), independent of the selected mode; None if not populated.",
+    )

@@ -47,6 +47,10 @@ IR_StatusBpsRotor = 51
 IR_CurSuFanSpeed = 52  # Actual supply fan performance, percent
 IR_CurExFanSpeed = 53  # Actual extract fan performance, percent
 
+# Discrete inputs: controller-reported heating/cooling activity
+DI_StatusHEATER = 7
+DI_StatusCOOLER = 8
+
 # Discrete inputs: alarm codes 0 through 52
 DI_ALARM_START = 19
 DI_ALARM_COUNT = 53
