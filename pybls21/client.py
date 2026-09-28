@@ -258,7 +258,7 @@ class S21Client:
             except (OSError, ModbusException) as error:
                 self._mark_unavailable()
                 raise ModbusCommunicationException(str(error)) from error
-            except (Exception, asyncio.CancelledError):
+            except Exception, asyncio.CancelledError:
                 self._mark_unavailable()
                 raise
             finally:

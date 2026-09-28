@@ -3,7 +3,7 @@ An api allowing control of AC state (temperature, on/off, speed) of an Blauberg 
 
 ## Usage
 
-Requires Python 3.10+ and `pymodbus>=3.13.1,<4.0`.
+Requires Python 3.14.2+ and `pymodbus>=3.13.1,<4.0`.
 
 ```python
 import asyncio
@@ -174,8 +174,10 @@ python -m build
 python -m twine check dist/*
 ```
 
-CI tests Python 3.10–3.14, checks the minimum and newest allowed pymodbus, and
-requires at least 95% combined statement/branch coverage. The package ships
+CI tests Python 3.14.2 with minimum pymodbus and the latest Python 3.14 patch
+with the newest allowed pymodbus, and requires at least 95% combined
+statement/branch coverage. The Python minimum matches
+[Home Assistant 2026.9.4](https://github.com/home-assistant/core/blob/2026.9.4/pyproject.toml#L22). The package ships
 `py.typed` for downstream type checking.
 
 ## Releasing

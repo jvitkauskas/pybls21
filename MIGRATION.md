@@ -4,6 +4,12 @@ Version 5 keeps the async control methods and Modbus mappings, but changes the
 state model, error contract, and packaging. Update the Home Assistant component
 before changing its pinned dependency to `pybls21==5.0.0`.
 
+## Python requirement
+
+Version 5 requires Python 3.14.2 or newer, matching Home Assistant 2026.9.4.
+Python 3.10–3.13 and Python 3.14.0–3.14.1 are no longer supported. Update the
+runtime before upgrading; older Home Assistant installations may need an update.
+
 ## Device snapshots
 
 `ClimateDevice` is now a frozen, keyword-only dataclass with slots. Attribute

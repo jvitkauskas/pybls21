@@ -27,7 +27,7 @@ Core capabilities in this project:
 
 ## Development Setup
 
-Use Python 3.10+.
+Use Python 3.14.2+, matching the Home Assistant 2026.9 baseline.
 
 ```bash
 python3 -m venv .venv
