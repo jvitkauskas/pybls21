@@ -91,6 +91,25 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ModbusCommunicationException):
             await client.poll()
 
+    async def test_poll_when_it_fails_after_a_successful_poll_marks_device_unavailable(
+        self,
+    ):
+        client = S21Client(host=self.server.host, port=self.server.port)
+
+        # A device has to be present first - the failure path below is only
+        # reached once self.device holds a ClimateDevice.
+        await client.poll()
+        self.assertTrue(client.device.available)
+
+        client.client.connect = AsyncMock(return_value=True)
+        client.client.close = Mock()
+        client.client.read_input_registers = AsyncMock(return_value=ErrorResponse())
+
+        with self.assertRaises(ModbusCommunicationException):
+            await client.poll()
+
+        self.assertFalse(client.device.available)
+
     async def test_turn_on_when_write_fails_raises_exception(self):
         client = S21Client(host=self.server.host, port=self.server.port)
         client.client.connect = AsyncMock(return_value=True)
