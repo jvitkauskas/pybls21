@@ -934,6 +934,21 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(client.device.available)
                 self.assertFalse(client._client.connected)
 
+    async def test_deadline_while_waiting_for_lock_preserves_cached_state(self):
+        client = S21Client(self.server.host, self.server.port)
+        snapshot = await client.poll()
+        client._client.connect = AsyncMock()
+        client._client.close = Mock()
+        async with client._lock:
+            with self.assertRaises(TimeoutError):
+                async with asyncio.timeout(0):
+                    await client.poll()
+            self.assertTrue(client._lock.locked())
+        self.assertIs(client.device, snapshot)
+        self.assertTrue(snapshot.available)
+        client._client.connect.assert_not_called()
+        client._client.close.assert_not_called()
+
     async def test_cancelled_poll_invalidates_cached_state_and_can_recover(self):
         client = S21Client(self.server.host, self.server.port)
         snapshot = await client.poll()

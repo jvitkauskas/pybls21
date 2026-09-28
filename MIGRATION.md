@@ -28,8 +28,12 @@ updated = replace(snapshot, available=False)
 
 `hvac_modes`, `fan_modes`, and `alarm_codes` are tuples. `alarm_codes` is an empty
 tuple when no alarms are reported. `hvac_mode` and `hvac_action` are annotated
-with their enum types (both remain string-compatible). `BypassMode` and
-`BypassType` are now `IntEnum` classes.
+with their enum types. Both enums now use `StrEnum`: string conversion and
+formatting return the value, so `str(HVACMode.HEAT)` and `f"{HVACMode.HEAT}"`
+produce `"heat"` instead of `"HVACMode.HEAT"`. String equality and value-based
+construction remain supported. `BypassMode` and `BypassType` are now `IntEnum`
+classes. Snapshot fields include Python 3.14 `field(doc=...)` documentation
+for their meaning, units, and unavailable values.
 
 `timer_countdown` is a `datetime.timedelta` rather than an `HH:MM:SS` string.
 Use `snapshot.timer_countdown.total_seconds()` for a Home Assistant duration
@@ -93,7 +97,24 @@ each operation connects, performs its work, and closes under one shared lock.
 Optional keyword arguments `timeout` (seconds per Modbus request) and `retries`
 (request retry count) are now available. Defaults remain 3 seconds and 3 retries.
 They are not a total poll deadline. Callers can bound an entire operation with
-`asyncio.wait_for()` if needed.
+`asyncio.timeout()`, including time waiting for the client lock:
+
+```python
+try:
+    async with asyncio.timeout(10):
+        snapshot = await client.poll()
+except TimeoutError:
+    # The caller's total deadline expired; handle outside the timeout block.
+    ...
+except S21Error:
+    # A device/transport failure occurred, including per-request timeouts.
+    ...
+```
+
+An expired outer deadline cancels the operation and raises `TimeoutError` to
+the caller. An operation that acquired the lock closes its connection and marks
+cached state unavailable; one cancelled while waiting for the lock has not
+started I/O and leaves the active operation and cached state untouched.
 
 ## Development and releases
 

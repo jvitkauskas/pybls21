@@ -30,6 +30,25 @@ serialized because the unit supports one connection. Reuse one client per unit.
 `timeout` applies per Modbus request, not to the full poll. Writes do not update
 cached readings; call `poll()` to get confirmed state.
 
+To limit the whole poll, including waiting for the client lock, use an outer
+`asyncio.timeout()` context. Handle its `TimeoutError` outside the block:
+
+```python
+try:
+    async with asyncio.timeout(10):
+        snapshot = await client.poll()
+except TimeoutError:
+    print("The total poll deadline expired")
+except S21Error as error:
+    print(f"Device communication failed: {error}")
+```
+
+The outer deadline also limits time spent on retries. A per-request timeout is
+reported as `ModbusCommunicationException` (a subclass of `S21Error`); expiry of
+the outer deadline raises `TimeoutError`. Cancellation cleans up an operation
+that has started I/O. Cancelling while waiting for the lock leaves the operation
+already using the connection unaffected.
+
 Upgrading from v4? See [the migration guide](MIGRATION.md) for the changed model,
 identity, exceptions, and Home Assistant component migration.
 

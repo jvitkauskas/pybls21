@@ -96,6 +96,20 @@ class TestLifecycle(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._client.connect.call_count, 2)
         self.assertEqual(client._client.close.call_count, 2)
 
+    async def test_outer_poll_deadline_raises_timeout_and_cleans_up(self):
+        client = S21Client("localhost")
+        client._client.connect = AsyncMock(return_value=True)
+        client._client.close = Mock()
+        blocked = asyncio.Event()
+        client._poll = AsyncMock(side_effect=blocked.wait)
+        with self.assertRaises(TimeoutError):
+            # Expire on the next event-loop turn, when the mocked poll suspends.
+            async with asyncio.timeout(0):
+                await client.poll()
+        client._poll.assert_awaited_once()
+        client._client.close.assert_called_once()
+        self.assertFalse(client._lock.locked())
+
     async def test_boolean_values_are_not_numeric_control_values(self):
         client = S21Client("localhost")
         client._client.connect = AsyncMock()

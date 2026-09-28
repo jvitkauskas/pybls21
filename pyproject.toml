@@ -41,10 +41,6 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
 
-# Keep the existing str(Enum) representation; StrEnum would change public behavior.
-[tool.ruff.lint.per-file-ignores]
-"pybls21/models.py" = ["UP042"]
-
 [tool.coverage.run]
 branch = true
 source = ["pybls21"]
