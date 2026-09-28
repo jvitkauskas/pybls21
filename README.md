@@ -70,8 +70,54 @@ identity, exceptions, and Home Assistant component migration.
 
 Booleans are not accepted as numeric control values. Bad arguments raise
 `ValueError` before network I/O. `S21Error` is the base for
-`UnsupportedDeviceException` and `ModbusCommunicationException`; the latter
+`UnsupportedDeviceException`, `DiscoveryError`, and `ModbusCommunicationException`; the latter
 includes transport errors and timeouts, retaining the original cause.
+
+## Discovering devices
+
+```python
+from pybls21 import discover, S21Client
+
+# Broadcast one read-only UDP request and collect replies for three seconds.
+devices = await discover()
+for device in devices:
+    print(device.device_id, device.host)
+    snapshot = await S21Client(device.host).poll()
+
+# Optional: target a subnet, choose a local interface, or query a known host.
+devices = await discover(address="192.168.1.255", local_address="192.168.1.10")
+devices = await discover(address="192.168.1.149", timeout=1.0)
+```
+
+`discover()` returns a tuple of immutable `DiscoveredDevice` objects with `host`
+and `device_id`. It collects replies for the whole timeout, deduplicates by
+controller ID (keeping the first address received), and sorts results by ID.
+No replies means an empty tuple. Invalid arguments raise `ValueError`; socket
+failures raise `DiscoveryError`, a subclass of `S21Error`, retaining the cause.
+Cancellation propagates and closes the socket. No background tasks are left running.
+
+Discovery uses IPv4 UDP port **4000**, independently of Modbus TCP port **502**.
+It sends a parameter-read request for controller ID and device type using an
+empty password. Replies must have a valid checksum, matching controller IDs,
+and S21 device type 1. This was verified by unicast and broadcast against an S21
+running firmware `0.36 (2019-05-08)`; availability on other firmware is not yet
+verified. The packet format follows the manufacturer's
+[UDP protocol documentation](https://device.report/m/4ad7c8426973ad1157494cc5715f286e69d244ea3fa438d4b66851938bebf485);
+the [S21 manual](https://blaubergdata.de/Daten/Manual_S21.pdf) describes the app's
+network-search feature.
+
+The default broadcast address is `255.255.255.255`; it normally reaches only the
+local subnet. On a host with multiple network interfaces, call discovery for
+each desired interface using `local_address` and, if necessary, its subnet's
+broadcast address. Arguments accept IPv4 addresses, not hostnames or IPv6.
+Firewalls and network isolation can prevent replies; manual host configuration
+remains supported. Discovery does not automatically run when creating a client.
+
+The controller ID is a device-provided identifier that applications can use
+across IP changes. It is separate from `ClimateDevice` and does not change
+existing polling or entity IDs. UDP replies are not authenticated; validate a
+candidate with `S21Client.poll()` before setting up the device. No device settings
+are written and no password is needed for discovery on the tested unit.
 
 ## Additional readings
 

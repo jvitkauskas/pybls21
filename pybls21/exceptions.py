@@ -14,3 +14,7 @@ class ModbusCommunicationException(S21Error):
 
     Transport exceptions are retained as ``__cause__`` when wrapped.
     """
+
+
+class DiscoveryError(S21Error):
+    """UDP discovery failed due to a socket error; the cause is retained."""
