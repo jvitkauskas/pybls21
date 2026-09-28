@@ -179,6 +179,14 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.server.data_bank.set_input_registers(IR_CurSuPRESS, [45])
         self.server.data_bank.set_input_registers(IR_CurExPRESS, [50])
         self.server.data_bank.set_input_registers(IR_CurFILTER_TIMER_DAYS, [69])
+        self.server.data_bank.set_input_registers(IR_CurFILTER_TIMER_HOURS_MINUTES, [0x0809])
+        self.server.data_bank.set_input_registers(IR_CurTIMER_TIME, [0x112B])
+        self.server.data_bank.set_input_registers(IR_CurTIMER_TIME_HOURS, [0xAB02])
+        self.server.data_bank.set_input_registers(IR_TotalWorkingTime_HOURS_MINUTES, [0x0304])
+        self.server.data_bank.set_input_registers(IR_TotalWorkingTime_DAYS, [2])
+        self.server.data_bank.set_input_registers(IR_CurSuAirFLOW, [123])
+        self.server.data_bank.set_input_registers(IR_CurExAirFLOW, [456])
+        self.server.data_bank.set_input_registers(IR_CurSuFanSpeed, [35, 45])
         self.server.data_bank.set_input_registers(
             IR_VerMAIN_FMW_start, [36, 2053, 2019]
         )
@@ -233,6 +241,19 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
                 bypass_mode=None,
                 bypass_position=None,
                 manual_bypass_position=None,
+                is_timer=False,
+                timer_countdown="02:17:43",
+                is_schedule_mode=False,
+                fan_level_schedule_mode=0,
+                fan_level_timer_mode=0,
+                alarm_codes=[],
+                supply_airflow=123,
+                extract_airflow=456,
+                operating_time_minutes=3064,
+                filter_countdown_hours=8,
+                filter_countdown_minutes=9,
+                supply_fan_speed_percent=35,
+                extract_fan_speed_percent=45,
             ),
         )
 
@@ -278,6 +299,95 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(device.hvac_action, HVACAction.IDLE)
                     self.server.data_bank.set_input_registers(address, [100])
                     self.assertEqual(getattr(await client.poll(), field), 10.0)
+
+    async def test_version_43_model_constructor_remains_supported(self):
+        device = await S21Client(self.server.host, self.server.port).poll()
+        # Version 4.3.0 had 37 fields, including its sensor and bypass additions.
+        positional = ClimateDevice(*device[:37])
+        keyword = ClimateDevice(**dict(zip(device._fields[:37], device[:37])))
+        self.assertEqual(positional, keyword)
+        self.assertIsInstance(positional, tuple)
+        self.assertEqual(positional[:37], device[:37])
+        self.assertIsNone(positional.supply_fan_speed_percent)
+        self.assertIsNone(positional.alarm_codes)
+
+    async def test_timer_and_schedule_controls(self):
+        controls = (
+            ("set_timer_on", CL_TIMER, True, "is_timer"),
+            ("set_timer_off", CL_TIMER, False, "is_timer"),
+            ("set_scheduler_mode_on", CL_WEEK, True, "is_schedule_mode"),
+            ("set_scheduler_mode_off", CL_WEEK, False, "is_schedule_mode"),
+        )
+        client = S21Client(self.server.host, self.server.port)
+        for method, address, enabled, field in controls:
+            with self.subTest(method=method):
+                self.server.data_bank.set_coils(address, [not enabled])
+                await getattr(client, method)()
+                self.assertEqual(self.server.data_bank.get_coils(address, 1), [enabled])
+                self.assertEqual(getattr(await client.poll(), field), enabled)
+
+    async def test_timer_and_schedule_preserve_configured_fan_mode(self):
+        bank = self.server.data_bank
+        bank.set_holding_registers(HR_MaxSPEED_MODE, [3])
+        bank.set_holding_registers(HR_SPEED_MODE, [2])
+        bank.set_holding_registers(HR_TIMER_MODE, [1])
+        bank.set_input_registers(IR_CurWeekSpeed, [0])  # Scheduled standby
+        bank.set_coils(CL_TIMER, [True])
+        bank.set_coils(CL_WEEK, [True])
+        bank.set_coils(CL_Boost_MODE, [True])
+        device = await S21Client(self.server.host, self.server.port).poll()
+        self.assertTrue(device.is_timer)
+        self.assertTrue(device.is_schedule_mode)
+        self.assertEqual(device.fan_mode, 2)
+        self.assertEqual(device.fan_level_timer_mode, 1)
+        self.assertEqual(device.fan_level_schedule_mode, 0)
+
+    async def test_alarm_codes_are_read_only_for_active_alarms_or_warnings(self):
+        client = S21Client(self.server.host, self.server.port)
+        client.client.read_discrete_inputs = Mock(wraps=client.client.read_discrete_inputs)
+        bank = self.server.data_bank
+        bank.set_discrete_inputs(DI_ALARM_START, [True])
+        bank.set_discrete_inputs(DI_ALARM_START + DI_ALARM_COUNT - 1, [True])
+        for state, expected in ((0, []), (1, [0, 52]), (2, [0, 52]), (0, [])):
+            with self.subTest(state=state):
+                bank.set_input_registers(IR_ALARM, [state])
+                self.assertEqual((await client.poll()).alarm_codes, expected)
+        self.assertEqual(client.client.read_discrete_inputs.call_count, 2)
+        client.client.read_discrete_inputs.assert_called_with(19, count=53)
+
+    async def test_alarm_code_byte_padding_is_ignored(self):
+        self.server.data_bank.set_input_registers(IR_ALARM, [1])
+        client = S21Client(self.server.host, self.server.port)
+        client.client.read_discrete_inputs = AsyncMock(
+            return_value=SuccessResponse(bits=[False] * 53 + [True] * 3)
+        )
+        self.assertEqual((await client.poll()).alarm_codes, [])
+
+    async def test_alarm_read_errors_invalidate_availability(self):
+        for response in (None, ErrorResponse(), SuccessResponse(bits=[False] * 8)):
+            with self.subTest(response=response):
+                self.server.data_bank.set_input_registers(IR_ALARM, [0])
+                client = S21Client(self.server.host, self.server.port)
+                await client.poll()
+                self.server.data_bank.set_input_registers(IR_ALARM, [1])
+                client.client.read_discrete_inputs = AsyncMock(return_value=response)
+                with self.assertRaises(ModbusCommunicationException):
+                    await client.poll()
+                self.assertFalse(client.device.available)
+                self.assertFalse(client.client.connected)
+
+    async def test_operating_time_and_filter_countdown_zero_and_rollover(self):
+        bank = self.server.data_bank
+        client = S21Client(self.server.host, self.server.port)
+        device = await client.poll()
+        self.assertEqual(device.operating_time_minutes, 0)
+        self.assertEqual(device.filter_countdown_hours, 0)
+        self.assertEqual(device.filter_countdown_minutes, 0)
+        self.assertEqual(device.timer_countdown, "00:00:00")
+        for days, hours, minutes, expected in ((1, 23, 59, 2879), (2, 0, 0, 2880)):
+            bank.set_input_registers(IR_TotalWorkingTime_HOURS_MINUTES,
+                                     [(hours << 8) | minutes, days])
+            self.assertEqual((await client.poll()).operating_time_minutes, expected)
 
     async def test_extract_and_exhaust_temperatures_support_negative_and_zero(self):
         self.server.data_bank.set_input_registers(IR_CurTEMP_ExAirIn, [0xFFF6])
@@ -652,6 +762,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(device.current_temperature, 21.5)
             self.assertEqual(device.bypass_mode, BypassMode.AUTO)
             self.assertIsNone(device.bypass_position)
+            self.assertIsNone(device.supply_fan_speed_percent)
+            self.assertIsNone(device.extract_fan_speed_percent)
 
     async def test_no_bypass_skips_optional_position_read(self):
         client = S21Client(self.server.host, self.server.port)
@@ -663,7 +775,41 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(device.bypass_position)
         self.assertIsNone(device.bypass_mode)
         self.assertIsNone(device.manual_bypass_position)
-        self.assertEqual(client.client.read_input_registers.call_count, 2)
+        self.assertEqual(client.client.read_input_registers.call_count, 3)
+        client.client.read_input_registers.assert_any_call(IR_CurSuFanSpeed, count=2)
+
+    async def test_fan_percentages_do_not_change_rpm_readings(self):
+        bank = self.server.data_bank
+        bank.set_input_registers(IR_SuRPM, [1700, 1800])
+        bank.set_input_registers(IR_CurSuFanSpeed, [0, 100])
+        device = await S21Client(self.server.host, self.server.port).poll()
+        self.assertEqual(device.supply_fan_speed, 1700)
+        self.assertEqual(device.extract_fan_speed, 1800)
+        self.assertEqual(device.supply_fan_speed_percent, 0)
+        self.assertEqual(device.extract_fan_speed_percent, 100)
+
+    async def test_fan_percentage_errors_are_not_hidden(self):
+        for response in (None, ExceptionResponse(4, 4),
+                         SuccessResponse(registers=[10]), TimeoutError("Timed out")):
+            with self.subTest(response=response):
+                client = S21Client(self.server.host, self.server.port)
+                await client.poll()
+                original_read = client.client.read_input_registers
+
+                async def read(address, *, count):
+                    if address == IR_CurSuFanSpeed:
+                        if isinstance(response, Exception):
+                            raise response
+                        return response
+                    return await original_read(address, count=count)
+
+                client.client.read_input_registers = AsyncMock(side_effect=read)
+                expected = (TimeoutError if isinstance(response, TimeoutError)
+                            else ModbusCommunicationException)
+                with self.assertRaises(expected):
+                    await client.poll()
+                self.assertFalse(client.device.available)
+                self.assertFalse(client.client.connected)
 
     async def test_optional_position_does_not_hide_communication_errors(self):
         self.server.data_bank.set_holding_registers(HR_BPS_ROTOR_TYPE, [2])
