@@ -744,7 +744,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.manual_bypass_position, 75)
         self.assertEqual(device.bypass_position, 42)
 
-    async def test_poll_supports_older_input_register_map(self):
+    async def test_poll_tolerates_illegal_address_for_optional_registers(self):
         bank = DataBank(coils_size=25, h_regs_size=182, i_regs_size=51)
         bank.set_input_registers(reg.IR_DeviceTYPE, [1])
         bank.set_input_registers(reg.IR_CurTEMP_SuAirOut, [215])
@@ -789,6 +789,30 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.extract_fan_speed, 1800)
         self.assertEqual(device.supply_fan_speed_percent, 0)
         self.assertEqual(device.extract_fan_speed_percent, 100)
+
+    async def test_optional_percentages_reject_invalid_measurements_individually(self):
+        bank = self.server.data_bank
+        bank.set_holding_registers(reg.HR_BPS_ROTOR_TYPE, [3])
+        client = S21Client(self.server.host, self.server.port)
+        for raw, expected in (
+            ([65535, 65535, 65535], (None, None, None)),
+            ([0, 0, 100], (0, 0, 100)),
+            ([100, 100, 0], (100, 100, 0)),
+            ([101, 42, 65535], (None, 42, None)),
+            ([42, 65535, 23], (42, None, 23)),
+        ):
+            with self.subTest(raw=raw):
+                bank.set_input_registers(reg.IR_StatusBpsRotor, raw)
+                device = await client.poll()
+                self.assertTrue(device.available)
+                self.assertEqual(
+                    (
+                        device.bypass_position,
+                        device.supply_fan_speed_percent,
+                        device.extract_fan_speed_percent,
+                    ),
+                    expected,
+                )
 
     async def test_fan_percentage_errors_are_not_hidden(self):
         for response in (

@@ -33,6 +33,12 @@ def _parse_temperature(value: int) -> float | None:
     return _to_signed_16bit(value) / 10
 
 
+def _parse_optional_percentage(value: int) -> int | None:
+    # Firmware 0.36 (2019-05-08) was observed returning 0xFFFF for IR51-53
+    # and beyond. A successful read does not imply a usable measurement.
+    return value if 0 <= value <= 100 else None
+
+
 MODE_TO_REGISTER = {
     HVACMode.FAN_ONLY: 0,
     HVACMode.HEAT: 1,
@@ -162,7 +168,11 @@ def decode_device(
         filter_countdown_days=input_registers[reg.IR_CurFILTER_TIMER_DAYS],
         bypass_type=bypass_type,
         bypass_mode=bypass_mode,
-        bypass_position=bypass_registers[0] if bypass_registers is not None else None,
+        bypass_position=(
+            _parse_optional_percentage(bypass_registers[0])
+            if bypass_registers is not None
+            else None
+        ),
         manual_bypass_position=manual_bypass_position,
         is_timer=coils[reg.CL_TIMER],
         timer_countdown=timedelta(
@@ -182,9 +192,13 @@ def decode_device(
         filter_countdown_hours=filter_hours,
         filter_countdown_minutes=filter_minutes,
         supply_fan_speed_percent=(
-            fan_percentages[0] if fan_percentages is not None else None
+            _parse_optional_percentage(fan_percentages[0])
+            if fan_percentages is not None
+            else None
         ),
         extract_fan_speed_percent=(
-            fan_percentages[1] if fan_percentages is not None else None
+            _parse_optional_percentage(fan_percentages[1])
+            if fan_percentages is not None
+            else None
         ),
     )

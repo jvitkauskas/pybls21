@@ -91,7 +91,7 @@ stopped rotor. Choose controls appropriate to the reported `bypass_type`.
 
 The model exposes `bypass_type`, `bypass_mode`, `manual_bypass_position`, and
 `bypass_position`. Position is read separately from optional input register 51.
-On older firmware that rejects this address, `bypass_position` is `None` and
+If the device rejects this address with Illegal Data Address, `bypass_position` is `None` and
 polling the other readings still succeeds. Other communication errors are
 propagated. When no bypass/rotor is fitted, its mode and positions are `None`
 and the optional read is skipped.
@@ -121,7 +121,7 @@ The following fields are available after `await client.poll()`:
 | `supply_airflow`, `extract_airflow` | Airflow in m³/h |
 | `operating_time_minutes` | Total device operating time in minutes |
 | `filter_countdown_hours`, `filter_countdown_minutes` | Remaining hours and minutes in addition to `filter_countdown_days` |
-| `supply_fan_speed_percent`, `extract_fan_speed_percent` | Actual fan performance in percent, or `None` on older firmware |
+| `supply_fan_speed_percent`, `extract_fan_speed_percent` | Actual fan performance in percent, or `None` when unavailable |
 
 `fan_mode` remains the configured normal fan level and `set_fan_mode(mode)`
 still takes one argument. Timer and schedule levels are separate readings, not
@@ -132,8 +132,17 @@ The timer, schedule, airflow, operating time, and filter readings use the blocks
 already fetched by polling. Detailed alarm codes add a discrete-input read only
 when an alarm or warning is active. Fan percentages add a separate read of
 IR52–53; an Illegal Data Address response leaves both percentages unknown without
-interrupting other readings. Timeouts and other errors still propagate and
+interrupting other readings. Successful reads containing percentages outside
+0–100 (including `65535` / `0xFFFF`) are also reported as `None`, individually
+for bypass position and each fan percentage. Timeouts and other errors still propagate and
 invalidate cached availability.
+
+There is no verified firmware-version cutoff for these optional readings. The
+bundled protocol table ends at IR50; a physical device reporting firmware
+`0.36 (2019-05-08)` accepted IR51–53 reads but returned `0xFFFF` for all three.
+It also returned `0xFFFF` at IR54–55. Those replies are not usable measurements
+and do not establish that the corresponding features are implemented. Its full
+DI0–71 range, including the 53 alarm bits, was readable.
 
 These additions are adapted from [marni-xyz's fork](https://github.com/marni-xyz/pybls21),
 including its operating-time, airflow, and fan-performance work attributed to

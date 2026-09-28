@@ -46,6 +46,13 @@ feature flags in the component using Home Assistant's own `ClimateEntityFeature`
 Other descriptive fields, including manufacturer, model, temperature unit, and
 supported modes, remain available.
 
+## Optional percentage readings
+
+`bypass_position`, `supply_fan_speed_percent`, and `extract_fan_speed_percent`
+now report `None` for values outside 0–100, including the `65535` observed on
+physical hardware. Valid readings remain usable even if another optional
+percentage is unknown; the device is still available after a successful poll.
+
 ## Errors and inputs
 
 Catch `S21Error` for all library device/communication failures, or its subclasses:

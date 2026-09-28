@@ -210,8 +210,8 @@ class S21Client:
         self, address: int, count: int
     ) -> list[int] | None:
         response = await self._client.read_input_registers(address, count=count)
-        # Older firmware lacks IR51-53. Only Illegal Data Address is optional;
-        # timeouts, malformed replies and other device errors must still surface.
+        # Treat Illegal Data Address as an unsupported optional reading, without
+        # assuming a firmware cutoff. Other communication errors must surface.
         if isinstance(response, ExceptionResponse) and response.exception_code == 2:
             return None
         return self._get_registers(
