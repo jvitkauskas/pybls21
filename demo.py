@@ -1,55 +1,17 @@
-#!/usr/bin/env python
+"""Poll a device: python demo.py --host 192.168.0.125 [--port 502]."""
+
 import argparse
 import asyncio
-import logging
-import sys
 
-from pybls21.client import S21Client
+from pybls21 import S21Client
 
 
-def help():
-    print("pybls21 demo app")
-    print("syntax: demo.py [options]")
-    print("options:")
-    print("    --host <hvac_ip>      ... network address of your HVAC device")
-    print(
-        "    --port [hvac_port]    ... optional TCP port if device is behind the proxy"
-    )
-    print()
-    print("examples:")
-    print("    demo.py --host 192.168.0.125 --port 502")
-
-
-async def main():
-    logging.basicConfig(level=logging.DEBUG)
-    parser = argparse.ArgumentParser(description="Commands: mode fan temp")
-    parser.add_argument(
-        "--host",
-        type=str,
-        dest="host",
-        help="network address of your HVAC device",
-        metavar="HOST",
-        default=None,
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        dest="port",
-        help="optional TCP port if device is behind the proxy",
-        metavar="PORT",
-        default=502,
-    )
+async def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host", required=True, help="Device IP address or hostname")
+    parser.add_argument("--port", type=int, default=502)
     args = parser.parse_args()
-
-    if (not args.host) or (not args.port):
-        help()
-        sys.exit(0)
-
-    client = S21Client(args.host, args.port)
-
-    status = await client.poll()
-
-    print(repr(status))
+    print(await S21Client(args.host, args.port).poll())
 
 
 if __name__ == "__main__":

@@ -114,3 +114,5 @@ python_boilerplate/
 
 # Eclipse
 .project
+
+.ruff_cache/
