@@ -11,15 +11,26 @@ HR_SPEED_MODE = 2
 HR_ManualSPEED = 17
 HR_OPERATION_MODE = 43
 HR_SetTEMP = 44
+HR_BPS_ROTOR_TYPE = 57
+HR_BPS_ROTOR_MODE = 74
+HR_SetBpsRotorMANUAL = 75
 
 # Input registers
 IR_CurTEMP_SuAirIn = 1
 IR_CurTEMP_SuAirOut = 2
+IR_CurTEMP_ExAirIn = 3  # Extract air from the rooms, at the unit inlet
+IR_CurTEMP_ExAirOut = 4  # Exhaust air to the outside, at the unit outlet
 IR_CurRH_Int = 10
+IR_CurSuPRESS = 21  # Supply duct pressure, Pa
+IR_CurExPRESS = 22  # Extract duct pressure, Pa
 IR_SuRPM = 23
 IR_ExRPM = 24
+IR_CurFILTER_TIMER_HOURS_MINUTES = 27  # High byte: hours, low byte: minutes
+IR_CurFILTER_TIMER_DAYS = 28
 IR_StateFILTER = 31
 IR_VerMAIN_FMW_start = 34
 IR_VerMAIN_FMW_end = 36
 IR_DeviceTYPE = 37
 IR_ALARM = 38
+IR_BPS_ROTOR_U = 45
+IR_StatusBpsRotor = 51

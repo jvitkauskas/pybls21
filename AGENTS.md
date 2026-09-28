@@ -52,7 +52,7 @@ python -m unittest -v tests.test_client
 ## Editing Rules
 
 - Keep all public client methods async.
-- Preserve compatibility with `pymodbus>=3.11.2,<4.0`.
+- Preserve compatibility with `pymodbus>=3.13.1,<4.0`.
 - When changing Modbus mappings, update tests in `pybls21/tests/test_client.py` in the same change.
 - Keep API behavior stable unless explicitly requested; this package may be used by Home Assistant integrations.
 

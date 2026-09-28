@@ -2,11 +2,14 @@ import asyncio
 from typing import Any, Awaitable, Callable, List, Optional
 
 from pymodbus.client import AsyncModbusTcpClient
+from pymodbus.pdu import ExceptionResponse
 
 from .constants import *
 from .exceptions import *
 from .models import (
     TEMP_CELSIUS,
+    BypassMode,
+    BypassType,
     ClimateDevice,
     ClimateEntityFeature,
     HVACAction,
@@ -25,6 +28,13 @@ def _parse_firmware_version(firmware_info: List[int]) -> str:
 
 def _to_signed_16bit(value: int) -> int:
     return value - 0x10000 if value > 0x7FFF else value
+
+
+def _parse_temperature(value: int) -> Optional[float]:
+    # The S21 reserves these values for a missing or short-circuited sensor.
+    if value in (0x8000, 0x7FFF):
+        return None
+    return _to_signed_16bit(value) / 10
 
 
 class S21Client:
@@ -73,6 +83,16 @@ class S21Client:
     async def boost_off(self) -> None:
         await self._do_with_connection(self._set_boost_off)
 
+    async def set_bypass_mode(self, mode: BypassMode) -> None:
+        mode = BypassMode(mode)
+        await self._do_with_connection(lambda: self._set_bypass_mode(mode))
+
+    async def set_bypass_position(self, position_percent: int) -> None:
+        self._validate_bypass_position(position_percent)
+        await self._do_with_connection(
+            lambda: self._set_bypass_position(position_percent)
+        )
+
     @staticmethod
     def _validate_modbus_response(response: Any, operation: str) -> Any:
         if response is None:
@@ -117,9 +137,22 @@ class S21Client:
         if not isinstance(temp_celsius, int) or not 15 <= temp_celsius <= 30:
             raise ValueError("Temperature must be between 15 and 30 °C")
 
+    @staticmethod
+    def _validate_bypass_position(position_percent: int) -> None:
+        if not isinstance(position_percent, int) or not 0 <= position_percent <= 100:
+            raise ValueError("Bypass position percent must be between 0 and 100")
+
     async def _read_input_registers(self, address: int, count: int) -> List[int]:
         response = await self.client.read_input_registers(address, count=count)
         return self._get_registers(response, count, f"read input registers at {address}")
+
+    async def _read_bypass_position(self) -> Optional[int]:
+        response = await self.client.read_input_registers(IR_StatusBpsRotor, count=1)
+        # Older firmware has no IR51. Only Illegal Data Address is optional;
+        # timeouts, malformed replies and other device errors must still surface.
+        if isinstance(response, ExceptionResponse) and response.exception_code == 2:
+            return None
+        return self._get_registers(response, 1, "read bypass position")[0]
 
     async def _read_holding_registers(self, address: int, count: int) -> List[int]:
         response = await self.client.read_holding_registers(address, count=count)
@@ -139,10 +172,11 @@ class S21Client:
 
     async def _do_with_connection(self, func: Callable[[], Awaitable[Any]]) -> Any:
         async with self.lock:  # Device does not support multiple connections
-            if not await self.client.connect():
-                raise ModbusCommunicationException("Failed to open Modbus TCP connection")
-
             try:
+                if not await self.client.connect():
+                    raise ModbusCommunicationException(
+                        "Failed to open Modbus TCP connection"
+                    )
                 return await func()
             except Exception:
                 if isinstance(self.device, ClimateDevice):
@@ -158,7 +192,7 @@ class S21Client:
             raise UnsupportedDeviceException("Unsupported device (IR_DeviceTYPE != 1)")
 
         coils = await self._read_coils(0, count=4)
-        holding_registers = await self._read_holding_registers(0, count=45)
+        holding_registers = await self._read_holding_registers(0, count=76)
         input_registers = await self._read_input_registers(0, count=39)
 
         is_on: bool = coils[CL_POWER]
@@ -169,10 +203,10 @@ class S21Client:
         alarm_state: int = input_registers[IR_ALARM]
         max_fan_level: int = holding_registers[HR_MaxSPEED_MODE]
         current_fan_level: int = holding_registers[HR_SPEED_MODE]  # 255 - manual
-        temp_before_heating_x10: int = _to_signed_16bit(
+        temp_before_heating = _parse_temperature(
             input_registers[IR_CurTEMP_SuAirIn]
         )
-        temp_after_heating_x10: int = _to_signed_16bit(
+        temp_after_heating = _parse_temperature(
             input_registers[IR_CurTEMP_SuAirOut]
         )
         supply_fan_speed: int = input_registers[IR_SuRPM]
@@ -182,6 +216,22 @@ class S21Client:
         ]
         operation_mode: int = holding_registers[HR_OPERATION_MODE]
         manual_fan_speed_percent: int = holding_registers[HR_ManualSPEED]
+        bypass_type: BypassType = BypassType(holding_registers[HR_BPS_ROTOR_TYPE])
+        bypass_mode = (
+            BypassMode(holding_registers[HR_BPS_ROTOR_MODE])
+            if bypass_type != BypassType.NOT_AVAILABLE
+            else None
+        )
+        manual_bypass_position = (
+            holding_registers[HR_SetBpsRotorMANUAL]
+            if bypass_type != BypassType.NOT_AVAILABLE
+            else None
+        )
+        bypass_position = (
+            await self._read_bypass_position()
+            if bypass_type != BypassType.NOT_AVAILABLE
+            else None
+        )
 
         self.device = ClimateDevice(
             available=True,
@@ -189,7 +239,7 @@ class S21Client:
             unique_id=f"S21_{self.host}_{self.port}",
             temperature_unit=TEMP_CELSIUS,  # Seems like no Fahrenheit option is available
             precision=1,
-            current_temperature=temp_after_heating_x10 / 10,
+            current_temperature=temp_after_heating,
             target_temperature=set_temperature,
             target_temperature_step=1,
             min_temp=15,
@@ -212,10 +262,12 @@ class S21Client:
             if operation_mode == 1
             else HVACAction.COOLING
             if operation_mode == 2
+            else None
+            if temp_before_heating is None or temp_after_heating is None
             else HVACAction.HEATING
-            if temp_before_heating_x10 < temp_after_heating_x10
+            if temp_before_heating < temp_after_heating
             else HVACAction.COOLING
-            if temp_before_heating_x10 > temp_after_heating_x10
+            if temp_before_heating > temp_after_heating
             else HVACAction.IDLE,
             hvac_modes=[
                 HVACMode.OFF,
@@ -232,13 +284,26 @@ class S21Client:
             model="S21",
             sw_version=_parse_firmware_version(firmware_info),
             is_boosting=is_boosting,
-            current_intake_temperature=temp_before_heating_x10 / 10,
+            current_intake_temperature=temp_before_heating,
             manual_fan_speed_percent=manual_fan_speed_percent,
             max_fan_level=max_fan_level,
             filter_state=filter_state,
             alarm_state=alarm_state,
             supply_fan_speed=supply_fan_speed,
             extract_fan_speed=extract_fan_speed,
+            current_extract_temperature=_parse_temperature(
+                input_registers[IR_CurTEMP_ExAirIn]
+            ),
+            current_exhaust_temperature=_parse_temperature(
+                input_registers[IR_CurTEMP_ExAirOut]
+            ),
+            supply_pressure=input_registers[IR_CurSuPRESS],
+            extract_pressure=input_registers[IR_CurExPRESS],
+            filter_countdown_days=input_registers[IR_CurFILTER_TIMER_DAYS],
+            bypass_type=bypass_type,
+            bypass_mode=bypass_mode,
+            bypass_position=bypass_position,
+            manual_bypass_position=manual_bypass_position,
         )
 
         return self.device
@@ -285,3 +350,9 @@ class S21Client:
 
     async def _set_boost_off(self) -> None:
         await self._write_coil(CL_BoostSWITCH_CTRL, False)
+
+    async def _set_bypass_mode(self, mode: BypassMode) -> None:
+        await self._write_register(HR_BPS_ROTOR_MODE, int(mode))
+
+    async def _set_bypass_position(self, position_percent: int) -> None:
+        await self._write_register(HR_SetBpsRotorMANUAL, position_percent)
