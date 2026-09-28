@@ -135,6 +135,38 @@ a successful poll. Connection and communication failures mark
 successful subsequent poll restores it. Previously returned models are immutable
 snapshots, so read `client.device` for the updated availability.
 
+## Heater and cooler activity
+
+```python
+snapshot = await client.poll()
+print(snapshot.is_heating, snapshot.is_cooling)
+```
+
+`is_heating` and `is_cooling` expose the controller's operation indications at
+**DI7 (`DI_StatusHEATER`)** and **DI8 (`DI_StatusCOOLER`)**, respectively. Every poll
+reads both in one additional Modbus request, regardless of mode or alarm state.
+These booleans come directly from the controller; temperature differences,
+selected HVAC mode, and unit power do not override them. If both bits are set,
+both fields remain true rather than arbitrarily selecting one action.
+They indicate controller-reported operation, not independently measured power
+consumption or proof that the attached heater/cooler is functioning.
+
+A successful poll populates both fields. Failed, erroneous, or short responses
+fail the poll and mark the cached snapshot unavailable, like other required
+reads; they never silently report inactive equipment. The new fields default to
+`None` only for manually constructed snapshots that omit them, preserving
+compatibility with existing callers constructing `ClimateDevice`.
+
+The reads were verified on a physical S21 running firmware `0.36 (2019-05-08)`:
+both flags were false in fan-only mode while the fans ran. In a controlled test,
+heating mode with a 15 °C target left DI7 false; raising the target to 25 °C
+made DI7 true after about six seconds. Restoring fan-only mode and 15 °C made
+DI7 false again, with fan level and alarm codes unchanged. No cooler was
+configured, so active cooling is covered by the Modbus test server rather than
+a physical cooling test. The legacy `hvac_action` field remains inferred for compatibility. Use the
+new activity flags when actual heater/cooler status is needed; downstream
+integrations must not treat the inferred field as measured activity.
+
 ## Bypass control
 
 ```python

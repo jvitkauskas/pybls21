@@ -17,6 +17,7 @@ class TestDecoder(unittest.TestCase):
     def decode(self):
         return decode_device(
             coils=self.coils,
+            activity=[False, False],
             holding_registers=self.holding,
             input_registers=self.inputs,
             alarm_codes=[1, 52],

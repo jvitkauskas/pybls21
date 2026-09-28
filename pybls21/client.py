@@ -176,7 +176,7 @@ class S21Client:
         bits = self._validate_modbus_response(response, operation).bits
         if not isinstance(bits, list) or len(bits) < count:
             raise ModbusCommunicationException(
-                f"Modbus {operation} failed: expected {count} coil bits"
+                f"Modbus {operation} failed: expected {count} bits"
             )
         return bits
 
@@ -218,11 +218,12 @@ class S21Client:
             response, count, f"read input registers at {address}"
         )
 
+    async def _read_discrete_inputs(self, address: int, count: int) -> list[bool]:
+        response = await self._client.read_discrete_inputs(address, count=count)
+        return self._get_bits(response, count, f"read discrete inputs at {address}")
+
     async def _read_alarm_codes(self) -> list[int]:
-        response = await self._client.read_discrete_inputs(
-            reg.DI_ALARM_START, count=reg.DI_ALARM_COUNT
-        )
-        bits = self._get_bits(response, reg.DI_ALARM_COUNT, "read alarm codes")
+        bits = await self._read_discrete_inputs(reg.DI_ALARM_START, reg.DI_ALARM_COUNT)
         # Modbus pads bit responses to whole bytes; ignore bits beyond code 52.
         return [code for code in range(reg.DI_ALARM_COUNT) if bits[code]]
 
@@ -274,6 +275,9 @@ class S21Client:
         coils = await self._read_coils(0, count=4)
         holding_registers = await self._read_holding_registers(0, count=76)
         input_registers = await self._read_input_registers(0, count=39)
+        activity = await self._read_discrete_inputs(
+            reg.DI_StatusHEATER, count=reg.DI_StatusCOOLER - reg.DI_StatusHEATER + 1
+        )
         alarm_codes = (
             await self._read_alarm_codes() if input_registers[reg.IR_ALARM] else []
         )
@@ -288,6 +292,7 @@ class S21Client:
         try:
             return decode_device(
                 coils=coils,
+                activity=activity,
                 holding_registers=holding_registers,
                 input_registers=input_registers,
                 alarm_codes=alarm_codes,

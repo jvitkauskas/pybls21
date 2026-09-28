@@ -78,6 +78,7 @@ def _decode_hvac_action(
 def decode_device(
     *,
     coils: list[bool],
+    activity: list[bool],
     holding_registers: list[int],
     input_registers: list[int],
     alarm_codes: list[int],
@@ -126,6 +127,8 @@ def decode_device(
 
     return ClimateDevice(
         available=True,
+        is_heating=activity[0],
+        is_cooling=activity[reg.DI_StatusCOOLER - reg.DI_StatusHEATER],
         name="Blauberg S21",
         temperature_unit=TEMP_CELSIUS,
         precision=1,

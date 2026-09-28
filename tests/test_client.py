@@ -228,6 +228,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
                 model="S21",
                 sw_version="0.36 (2019-05-08)",
                 is_boosting=False,
+                is_heating=False,
+                is_cooling=False,
                 current_intake_temperature=10.8,
                 manual_fan_speed_percent=100,
                 max_fan_level=3,
@@ -333,6 +335,79 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.fan_level_timer_mode, 1)
         self.assertEqual(device.fan_level_schedule_mode, 0)
 
+    async def test_activity_bits_are_independent_of_mode_and_temperature(self):
+        client = S21Client(self.server.host, self.server.port)
+        bank = self.server.data_bank
+        bank.set_input_registers(reg.IR_ALARM, [0])
+        bank.set_input_registers(reg.IR_CurTEMP_SuAirIn, [100, 300])
+        for powered in (False, True):
+            bank.set_coils(reg.CL_POWER, [powered])
+            for mode in range(4):
+                bank.set_holding_registers(reg.HR_OPERATION_MODE, [mode])
+                for heating, cooling in (
+                    (False, False),
+                    (True, False),
+                    (False, True),
+                    (True, True),
+                ):
+                    with self.subTest(
+                        powered=powered, mode=mode, heating=heating, cooling=cooling
+                    ):
+                        bank.set_discrete_inputs(
+                            reg.DI_StatusHEATER, [heating, cooling]
+                        )
+                        snapshot = await client.poll()
+                        self.assertIs(snapshot.is_heating, heating)
+                        self.assertIs(snapshot.is_cooling, cooling)
+        # An unsupported temperature sensor does not invalidate operation bits.
+        bank.set_input_registers(reg.IR_CurTEMP_SuAirIn, [0x8000, 0x7FFF])
+        self.assertTrue((await client.poll()).is_heating)
+
+    async def test_activity_fields_default_to_unknown_for_older_constructors(self):
+        from dataclasses import fields
+
+        snapshot = await S21Client(self.server.host, self.server.port).poll()
+        old_arguments = {
+            field.name: getattr(snapshot, field.name)
+            for field in fields(snapshot)
+            if field.name not in {"is_heating", "is_cooling"}
+        }
+        constructed = ClimateDevice(**old_arguments)
+        self.assertIsNone(constructed.is_heating)
+        self.assertIsNone(constructed.is_cooling)
+
+    async def test_activity_byte_padding_does_not_report_cooling(self):
+        self.server.data_bank.set_input_registers(reg.IR_ALARM, [0])
+        client = S21Client(self.server.host, self.server.port)
+        client._client.read_discrete_inputs = AsyncMock(
+            return_value=SuccessResponse(bits=[True, False] + [True] * 6)
+        )
+        snapshot = await client.poll()
+        self.assertTrue(snapshot.is_heating)
+        self.assertFalse(snapshot.is_cooling)
+        client._client.read_discrete_inputs.assert_awaited_once_with(7, count=2)
+
+    async def test_activity_read_failures_invalidate_cache_and_recover(self):
+        client = S21Client(self.server.host, self.server.port)
+        read = client._client.read_discrete_inputs
+        for response in (
+            None,
+            ErrorResponse(),
+            SuccessResponse(bits=[]),
+            SuccessResponse(bits=[True]),
+        ):
+            with self.subTest(response=response):
+                client._client.read_discrete_inputs = read
+                snapshot = await client.poll()
+                client._client.read_discrete_inputs = AsyncMock(return_value=response)
+                with self.assertRaises(ModbusCommunicationException):
+                    await client.poll()
+                self.assertFalse(client.device.available)
+                self.assertTrue(snapshot.available)
+                self.assertFalse(client._client.connected)
+        client._client.read_discrete_inputs = read
+        self.assertTrue((await client.poll()).available)
+
     async def test_alarm_codes_are_read_only_for_active_alarms_or_warnings(self):
         client = S21Client(self.server.host, self.server.port)
         client._client.read_discrete_inputs = Mock(
@@ -345,8 +420,14 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
             with self.subTest(state=state):
                 bank.set_input_registers(reg.IR_ALARM, [state])
                 self.assertEqual((await client.poll()).alarm_codes, tuple(expected))
-        self.assertEqual(client._client.read_discrete_inputs.call_count, 2)
-        client._client.read_discrete_inputs.assert_called_with(19, count=53)
+        self.assertEqual(client._client.read_discrete_inputs.call_count, 6)
+        self.assertEqual(
+            [
+                (call.args[0], call.kwargs["count"])
+                for call in client._client.read_discrete_inputs.call_args_list
+            ],
+            [(7, 2), (7, 2), (19, 53), (7, 2), (19, 53), (7, 2)],
+        )
 
     async def test_alarm_code_byte_padding_is_ignored(self):
         self.server.data_bank.set_input_registers(reg.IR_ALARM, [1])
@@ -363,7 +444,13 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
                 client = S21Client(self.server.host, self.server.port)
                 await client.poll()
                 self.server.data_bank.set_input_registers(reg.IR_ALARM, [1])
-                client._client.read_discrete_inputs = AsyncMock(return_value=response)
+                client._client.read_discrete_inputs = AsyncMock(
+                    side_effect=lambda address, *, count: (
+                        response
+                        if address == reg.DI_ALARM_START
+                        else SuccessResponse(bits=[False] * 8)
+                    )
+                )
                 with self.assertRaises(ModbusCommunicationException):
                     await client.poll()
                 self.assertFalse(client.device.available)
